@@ -2,7 +2,7 @@
 
 '''
 If you're running this from this directory you can start it with some incantation such as:
-PYTHONPATH=$PYTHONPATH:../.libs ./matcher_service.py ../../conf/valhalla.json localhost:8002
+PYTHONPATH=$PYTHONPATH:../../tools.libs ./matcher_service.py ../../conf/manila.json localhost:8002
 '''
 
 import sys
