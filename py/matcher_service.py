@@ -27,6 +27,7 @@ actions = { 'segment_match': None }
 #TODO: read in multiple gpx files
 #TODO: append all json responses to 1 csv file
 
+"""
 sample_file = '/home/kdiluca/sandbox/reporter/py/data/001051629.gpx'
 gpx = open(sample_file, 'r')
 tree = ElementTree.parse(gpx)
@@ -86,7 +87,7 @@ for node in tree.iter():
 			json_list = []
 			outfile.close()
 			elapsed_time = 0
-
+"""
 #TODO: what do do with last few traces that total to < 60 sec?
     
 
