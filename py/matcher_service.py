@@ -80,8 +80,8 @@ for node in tree.iter():
 
 			outfile = open('/home/kdiluca/sandbox/reporter/py/output/gpx_%s.json' %namestr, 'w')
 			for line in gpx_list:
-				outfile.write(line)
-	                    	#json.dump(line, outfile)
+				#outfile.write(line)
+				json.dumps(line, outfile)
 			
 			json_list = []
 			outfile.close()
@@ -128,12 +128,12 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 		
 		result = self.segment_matcher.Match(json.dumps(params))
 
-		'''
+		"""
 		trace_file = '/home/kdiluca/sandbox/reporter/py/output/gpx_'+namestr+'.json'
 		with open(trace_file, 'r') as trace:		
  			for line in trace:		
  				result = self.segment_matcher.Match(json.dumps(line))
-		'''
+		"""
 
 		#prints segments array info to terminal in csv format if partial start and end are false
 		segments_dict = json.loads(result)
