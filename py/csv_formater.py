@@ -7,9 +7,8 @@ time cat reporter_requests.json | parallel --progress -j7 curl -s --data '{}' -o
 '''
 
 import sys
-import StringIO
+import csv
 import json
-import csv,json,requests
 from operator import itemgetter
 from datetime import datetime, date
 
@@ -40,18 +39,11 @@ for row in sorted(reader, key=itemgetter(columns[1], columns[0])):
     trace.append(row)
   # End the prior vehicle
   else:
-    '''
-    p = False
-    for i in trace:
-      if i['lat'] >= 14.62860 and i['lat'] < 14.66182 and i['lon'] >= 121.01615 and i['lon'] < 121.06088:
-        p = True
-        break
-    if p:
+    if len(trace):
       print json.dumps({'trace':trace})
-    '''
-    print json.dumps({'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': [ [float(i['lon']), float(i['lat'])] for i in trace ] }, 'properties':{}}, separators=(',',':'))
-    print ','
     trace = [ row ]
+    #print json.dumps({'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': [ [float(i['lon']), float(i['lat'])] for i in trace ] }, 'properties':{}}, separators=(',',':')), ','
+
 
   # Update prior_vehicle Id
   prior_vehicle_id = row.get(columns[1])
