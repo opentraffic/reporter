@@ -12,8 +12,6 @@ import json
 from operator import itemgetter
 from datetime import datetime, date
 
-actions = { 'segment_match': None }
-
 prev = 0
 elapsed_time = 0
 
