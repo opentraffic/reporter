@@ -13,9 +13,10 @@ from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 from SocketServer import ThreadingMixIn
 from cgi import urlparse
 import valhalla
-import csv,json
+import csv,json,requests
 from operator import itemgetter
 from datetime import datetime, date
+import urllib
 
 '''
 sample url looks like this:
@@ -28,7 +29,7 @@ prev = 0
 elapsed_time = 0
 
 csvfile = open('/data/traffic/manila', 'r')
-jsonfile = open('input/request_manila.json', 'w')
+jsonfile = open('reporter_requests.json', 'w')
 
 fieldnames = ("time","vehicleId","lat","lon")
 reader = csv.DictReader(csvfile, fieldnames=None)
@@ -48,7 +49,7 @@ for row in sorted(reader, key=itemgetter(fieldnames[1], fieldnames[0])):
     
     if prior_vehicle_id == 0:
         # First row - start a new trace URL
-        jsonfile.write('/segment_match?json={"trace":[')
+        jsonfile.write('http://localhost:8002/segment_match?json={"trace":[')
         json.dump(row, jsonfile)
     elif row.get(fieldnames[1]) == prior_vehicle_id:
         # Continuation of same vehicle Id - add to current URL
@@ -58,7 +59,7 @@ for row in sorted(reader, key=itemgetter(fieldnames[1], fieldnames[0])):
         # End the prior URL. Ideally we would send a URL to the reporter...
         jsonfile.write(']}' + '\n')
         # Start a new URL
-        jsonfile.write('/segment_match?json={"trace":[')
+        jsonfile.write('http://localhost:8002/segment_match?json={"trace":[')
         json.dump(row, jsonfile)
     # Update prior_vehicle Id
     prior_vehicle_id = row.get(fieldnames[1])
@@ -67,94 +68,86 @@ for row in sorted(reader, key=itemgetter(fieldnames[1], fieldnames[0])):
 jsonfile.write(']}')
 jsonfile.close()
 
+
 #TODO: what do do with last few traces that total to < 60 sec?
-    
+
 
 #enable threaded server
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
-  pass
+    pass
 
 #TODO: send json requests to segment matcher instead of to request file
 
 #custom handler for getting routes
 class SegmentMatcherHandler(BaseHTTPRequestHandler):
-
-	def __init__(self, *args):
-		self.segment_matcher = valhalla.SegmentMatcher()
-		BaseHTTPRequestHandler.__init__(self, *args)
+    def __init__(self, *args):
+        self.segment_matcher = valhalla.SegmentMatcher()
+        BaseHTTPRequestHandler.__init__(self, *args)
 
     #parse the request because we dont get this for free!
-	def handle_request(self):
-		#split the query from the path
-		try:
-			split = urlparse.urlsplit(self.path)
-		except:
+    def handle_request(self):
+        self.path = urllib.urlopen(url)
+        #split the query from the path
+        try:
+            split = urlparse.urlsplit(self.path)
+        except:
 			raise Exception('Try a url that looks like /action?query_string')
 		#path has the costing method and action in it
-		try:
-			action = actions[split.path.split('/')[-1]]
-		except:
-		  	raise Exception('Try a valid action: ' + str([k for k in actions]))
+        try:
+            action = actions[split.path.split('/')[-1]]
+        except:
+            raise Exception('Try a valid action: ' + str([k for k in actions]))
 		#get a dict and unexplode non-list entries
-		params = urlparse.parse_qs(split.query)
-		for k,v in params.iteritems():
+        params = urlparse.parse_qs(split.query)
+        for k,v in params.iteritems():
 			if len(v) == 1:
 				params[k] = v[0]
 		#save jsonp or not
-		jsonp = params.get('jsonp', None)
-		if params.has_key('json'):
+        jsonp = params.get('jsonp', None)
+        if params.has_key('json'):
 			params = json.loads(params['json'])
-		if jsonp is not None:
-			params['jsonp'] = jsonp
+        if jsonp is not None:
+		    params['jsonp'] = jsonp
 
-		
-		result = self.segment_matcher.Match(json.dumps(params))
+        result = self.segment_matcher.Match(json.dumps(params))
 
-		#prints segments array info to terminal in csv format if partial start and end are false
-		segments_dict = json.loads(result)
-		for seg in segments_dict['segments']:
-		    if "false" in seg['partial_start'] and "false" in seg['partial_end']:
-		        print ','.join([seg['segment_id'], seg['begin_time'], seg['end_time'], seg['length']])
-		    sys.stdout.flush()
+        #javascriptify this
+        if jsonp:
+            result = jsonp + '=' + result + ';'
+        #hand it back
+        return result, jsonp is not None 
 
-				
-		#javascriptify this
-		if jsonp:
-			result = jsonp + '=' + result + ';'
-		#hand it back
-		return result, jsonp is not None 
-
-	#send a success
-	def succeed(self, response, jsonp):
-		self.send_response(200)
+    #send a success
+    def succeed(self, response, jsonp):
+        self.send_response(200)
 	
 		#set some basic info
-		self.send_header('Access-Control-Allow-Origin','*')
-		if jsonp:
-			self.send_header('Content-type', 'text/plain;charset=utf-8')
-		else:
-			self.send_header('Content-type', 'application/json;charset=utf-8')
-	    	self.send_header('Content-length', len(response))
-	    	self.end_headers()
+        self.send_header('Access-Control-Allow-Origin','*')
+        if jsonp:
+            self.send_header('Content-type', 'text/plain;charset=utf-8')
+        else:
+            self.send_header('Content-type', 'application/json;charset=utf-8')
+            self.send_header('Content-length', len(response))
+            self.end_headers()
 	
 		#hand it back
-		self.wfile.write(response)
+        self.wfile.write(response)
 	
 	#send a fail
-	def fail(self, error):
-	    self.send_response(400)
+    def fail(self, error):
+        self.send_response(400)
+
+    #set some basic info
+        self.send_header('Access-Control-Allow-Origin','*')
+        self.send_header('Content-type', 'text/plain;charset=utf-8')
+        self.send_header('Content-length', len(error))
+        self.end_headers()
 	
-	    #set some basic info
-	    self.send_header('Access-Control-Allow-Origin','*')
-	    self.send_header('Content-type', 'text/plain;charset=utf-8')
-	    self.send_header('Content-length', len(error))
-	    self.end_headers()
-	
-	    #hand it back
-	    self.wfile.write(str(error))
+    #hand it back
+        self.wfile.write(str(error))
 	
 	#handle the request
-	def do_GET(self):
+    def do_GET(self):
 	    #get out the bits we care about
 	    try:
 	    	response, jsonp = self.handle_request()

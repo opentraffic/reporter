@@ -2,7 +2,7 @@
 
 '''
 If you're running this from this directory you can start it with some incantation such as:
-PYTHONPATH=$PYTHONPATH:../../tools.libs ./matcher_service.py ../../conf/manila.json localhost:8002
+PYTHONPATH=$PYTHONPATH:../../tools.libs ./reporter_service.py ../../conf/manila.json localhost:8002
 '''
 
 import sys
@@ -28,7 +28,7 @@ actions = { 'segment_match': None }
 #TODO: append all json responses to 1 csv file
 
 """
-sample_file = '/home/kdiluca/sandbox/reporter/py/data/001051629.gpx'
+sample_file = '/home/kdiluca/sandbox/reporter/py/001051629.gpx'
 gpx = open(sample_file, 'r')
 tree = ElementTree.parse(gpx)
 json_list = []
@@ -130,7 +130,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 		result = self.segment_matcher.Match(json.dumps(params))
 
 		"""
-		trace_file = '/home/kdiluca/sandbox/reporter/py/output/gpx_'+namestr+'.json'
+		trace_file = '/home/kdiluca/sandbox/reporter/py/gpx_'+namestr+'.json'
 		with open(trace_file, 'r') as trace:		
  			for line in trace:		
  				result = self.segment_matcher.Match(json.dumps(line))
