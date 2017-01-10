@@ -20,7 +20,7 @@ Build/run the python [matcher service](https://github.com/opentraffic/reporter) 
 The following environment variables are exposed to allow manipulation of the python matcher service:
 
 - `MATCHER_BIND_ADDR`: the IP on which the process will bind inside the container. Defaults to '0.0.0.0'.
-- `MATCHER_CONF_FILE`: the configuration file the process will reference. Defaults to '/conf/valhalla.json', which is included in the build of the container.
+- `MATCHER_CONF_FILE`: the configuration file the process will reference. Defaults to '/etc/valhalla.json', which is included in the build of the container.
 - `MATCHER_LISTEN_PORT`: the port on which the process will listen. Defaults to '8002'.
 
 ### Testing/Publishing Containers
@@ -32,13 +32,9 @@ This repository is tested on circleCI.
 
 ### Manually Building and Publishing Containers
 
-Example:
+Example: build a container tagged 'test'.
 
 ```
-docker build -f Dockerfile \
-  --tag mapzen/ot-reporter:latest \
-  --force-rm \
-  .
-
-docker push opentraffic/reporter
+docker build --tag opentraffic/reporter:test --force-rm .
+docker push opentraffic/reporter:test
 ```

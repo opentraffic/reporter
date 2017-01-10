@@ -4,7 +4,7 @@ MAINTAINER Grant Heffernan <grant@mapzen.com>
 # env
 ENV DEBIAN_FRONTEND noninteractive
 
-ENV MATCHER_CONF_FILE ${MATCHER_CONF_FILE:-"/conf/valhalla.json"}
+ENV MATCHER_CONF_FILE ${MATCHER_CONF_FILE:-"/etc/valhalla.json"}
 ENV MATCHER_BIND_ADDR ${MATCHER_BIND_ADDR:-"0.0.0.0"}
 ENV MATCHER_LISTEN_PORT ${MATCHER_LISTEN_PORT:-"8002"}
 
@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y \
 
 # add config
 ADD ./py /reporter
-ADD ./conf /conf
+ADD http://raw.githubusercontent.com/valhalla/conf/master/valhalla.json /etc/valhalla.json
 
 # cleanup
 RUN apt-get clean && \
