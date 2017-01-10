@@ -1,0 +1,15 @@
+version: '2'
+
+services:
+  reporter:
+    image: opentraffic/reporter:latest
+    networks:
+      - opentraffic
+    ports:
+      - "8002:8002"
+    volumes:
+      - ${DATAPATH}:/data/valhalla
+
+networks:
+  opentraffic:
+    driver: bridge
