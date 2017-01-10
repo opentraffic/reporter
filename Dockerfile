@@ -7,7 +7,7 @@ ENV MATCHER_BIND_ADDR ${MATCHER_BIND_ADDR:-"0.0.0.0"}
 ENV MATCHER_LISTEN_PORT ${MATCHER_LISTEN_PORT:-"8002"}
 
 # install dependencies
-RUN apt-get update -y && apt-get upgrade -y
+RUN apt-get update -y
 RUN apt-get install -y python
 
 RUN apt-get install -y software-properties-common
