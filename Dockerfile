@@ -2,19 +2,21 @@ FROM ubuntu:16.04
 MAINTAINER Grant Heffernan <grant@mapzen.com>
 
 # env
+ENV DEBIAN_FRONTEND noninteractive
+
 ENV MATCHER_CONF_FILE ${MATCHER_CONF_FILE:-"/conf/valhalla.json"}
 ENV MATCHER_BIND_ADDR ${MATCHER_BIND_ADDR:-"0.0.0.0"}
 ENV MATCHER_LISTEN_PORT ${MATCHER_LISTEN_PORT:-"8002"}
 
 # install dependencies
-RUN apt-get update -y
-RUN apt-get install -y python
+RUN apt-get update && apt-get install -y \
+      python \
+      software-properties-common
 
-RUN apt-get install -y software-properties-common
 RUN apt-add-repository -y ppa:kevinkreiser/prime-server
 RUN apt-add-repository -y ppa:valhalla-routing/valhalla
-RUN apt-get update -y
-RUN apt-get install -y python-valhalla
+RUN apt-get update && apt-get install -y \
+      python-valhalla
 
 # add config
 ADD ./py /reporter
