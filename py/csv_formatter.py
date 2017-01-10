@@ -35,6 +35,3 @@ with open(sys.argv[1], 'r') as csvfile:
         print json.dumps({'trace':trace}, separators=(',',':'))
       #print json.dumps({'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': [ [i['lon'], i['lat']] for i in trace ] }, 'properties':{}}, separators=(',',':')), ','
       trace = [ row ]
-
-    # Update prior_vehicle Id
-    prior_vehicle_id = row.get(columns[1])
