@@ -85,7 +85,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #handle POST
     if post:
       params = json.loads(self.rfile.read(int(self.headers['Content-Length'])).decode('utf-8'))
-    print params
 
     #ask valhalla to give back OSMLR segments along this trace
     result = self.server.segment_matcher.Match(json.dumps(params))
