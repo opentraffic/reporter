@@ -12,36 +12,26 @@ import json
 from operator import itemgetter
 from datetime import datetime, date
 
-prev = 0
-elapsed_time = 0
-
-csvfile = open(sys.argv[1], 'r')
-columns = ("time","vehicleId","lat","lon")
-reader = csv.DictReader(csvfile, fieldnames=columns)
-trace = []
-for row in sorted(reader, key=itemgetter(columns[1], columns[0])):
-  # Convert to epoch seconds
+# Read the file
+with open(sys.argv[1], 'r') as csvfile:
+  columns = ("time","vehicleId","lat","lon")
+  reader = csv.DictReader(csvfile, fieldnames=columns)
   epoch = datetime(1970,1,1)
-  i = datetime.strptime(row.get(columns[0]),"%Y-%m-%dT%H:%M:%S.%fZ")
-  delta_time = int((i - epoch).total_seconds())
-  row['time'] = delta_time
-  start_time = delta_time
-  if (prev != 0):
-    elapsed_time += delta_time - prev
-  else:
-    elapsed_time += delta_time - start_time
-  prev = start_time
+  trace = []
+  # For each row of data
+  for row in sorted(reader, key=itemgetter(columns[1], columns[0])):
+    # Convert to epoch seconds
+    row[columns[0]] = int((datetime.strptime(row.get(columns[0]),"%Y-%m-%dT%H:%M:%S.%fZ") - epoch).total_seconds())
+    # These shouldn't be strings
+    row['lon'] = float(row['lon'])
+    row['lat'] = float(row['lat'])
 
-  # Continuation of same vehicle Id
-  if len(trace) and row.get(columns[1]) == trace[-1].get(columns[1]):
-    trace.append(row)
-  # End the prior vehicle
-  else:
-    if len(trace):
-      print json.dumps({'trace':trace})
-    trace = [ row ]
-    #print json.dumps({'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': [ [float(i['lon']), float(i['lat'])] for i in trace ] }, 'properties':{}}, separators=(',',':')), ','
-
-
-  # Update prior_vehicle Id
-  prior_vehicle_id = row.get(columns[1])
+    # Continuation of same vehicle Id
+    if len(trace) and row.get(columns[1]) == trace[-1].get(columns[1]):
+      trace.append(row)
+    # End the prior vehicle
+    else:
+      if len(trace):
+        print json.dumps({'trace':trace}, separators=(',',':'))
+      #print json.dumps({'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': [ [i['lon'], i['lat']] for i in trace ] }, 'properties':{}}, separators=(',',':')), ','
+      trace = [ row ]
