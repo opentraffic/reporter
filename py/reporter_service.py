@@ -43,12 +43,6 @@ class ThreadPoolMixIn(ThreadingMixIn):
     while True:
       request, client_address = self.requests.get()
       ThreadingMixIn.process_request_thread(self, request, client_address)
-#      try:
-#        self.RequestHandlerClass(request, client_address, self, segment_matcher)
-#        self.shutdown_request(request)
-#      except:
-#        self.handle_error(request, client_address)
-#        self.shutdown_request(request)
     
   def handle_request(self):
     try:
@@ -64,10 +58,6 @@ class ThreadedHTTPServer(ThreadPoolMixIn, HTTPServer):
 
 #custom handler for getting routes
 class SegmentMatcherHandler(BaseHTTPRequestHandler):
-
-  def __init__(self, *args):
-    self.segment_matcher = args[2].segment_matcher
-    BaseHTTPRequestHandler.__init__(self, args[0], args[1], args[2])
 
   #parse the request because we dont get this for free!
   def handle_request(self,post):
@@ -98,7 +88,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     print params
 
     #ask valhalla to give back OSMLR segments along this trace
-    result = self.segment_matcher.Match(json.dumps(params))
+    result = self.server.segment_matcher.Match(json.dumps(params))
 
     #prints segments array info to terminal in csv format if partial start and end are false
     segments_dict = json.loads(result)
