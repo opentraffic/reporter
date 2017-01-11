@@ -3,13 +3,12 @@ machine:
     - docker
 
 dependencies:
+  pre:
+    - sudo apt-get update; sudo apt-get install awscli parallel
   override:
     - docker info
     - docker build --rm=false -t opentraffic/reporter .
 
 test:
   override:
-    - mkdir data
-    - wget --quiet -O data/tiles.tar https://s3.amazonaws.com/valhallatiles/manila/manila.tar
-    - docker run --name ot-reporter -d -v ${PWD}/data:/data/valhalla -p 8002:8002 opentraffic/reporter; sleep 5
-    - curl --fail -s --retry 3 --retry-delay 3 -v "localhost:8002/segment_match?json=\{\"trace\":\[\{\"lat\":14.527626,\"lon\":121.023819,\"time\":1000\},\{\"lat\":14.530104,\"lon\":121.022476,\"time\":1028\},\{\"lat\":14.531355,\"lon\":121.021797,\"time\":1042\},\{\"lat\":14.538553,\"lon\":121.017921,\"time\":1124\},\{\"lat\":14.539722,\"lon\":121.017235,\"time\":1137\},\{\"lat\":14.540189,\"lon\":121.016975,\"time\":1142\},\{\"lat\":14.541898,\"lon\":121.016090,\"time\":1161\},\{\"lat\":14.542177,\"lon\":121.015961,\"time\":1165\},\{\"lat\":14.543461,\"lon\":121.015274,\"time\":1179\},\{\"lat\":14.544432,\"lon\":121.014763,\"time\":1190\},\{\"lat\":14.544922,\"lon\":121.014496,\"time\":1195\}\]\}" | grep begin_time
+    - ./tests/circle.sh

@@ -18,7 +18,7 @@ RUN apt-add-repository -y ppa:valhalla-routing/valhalla
 RUN apt-get update && apt-get install -y \
       python-valhalla
 
-# add config
+# install code & default config
 ADD ./py /reporter
 ADD http://raw.githubusercontent.com/valhalla/conf/master/valhalla.json /etc/valhalla.json
 
