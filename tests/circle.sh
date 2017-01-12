@@ -22,7 +22,11 @@ sleep 5
 echo "Generating reporter request data with the csv formatter..."
 sudo lxc-attach \
   -n "$(docker inspect --format "{{.Id}}" reporter)" -- \
-  bash -c "/reporter/csv_formatter.py /data/valhalla/grab.csv > /data/valhalla/reporter_requests.json"
+  bash -c "/reporter/csv_formatter.py /data/valhalla/grab.csv >/data/valhalla/reporter_requests.json"
+
+# basic json validation
+echo "Validating csv formatter output is valid json..."
+jq "." ${PWD}/data/reporter_requests.json >/dev/null
 
 # test the generated data against the service
 echo "Running a subset of the test data through the matcher service..."
