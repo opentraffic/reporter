@@ -6,11 +6,17 @@ echo "Downloading test data..."
 aws s3 cp --recursive s3://circleci_reporter data
 
 # start the container
-echo "Starting the docker container..."
+echo "Starting the redis container..."
+docker run \
+  --name reporter-redis \
+  -d redis:3.2.6
+
+echo "Starting the reporter container..."
 docker run \
   -d \
   -p 8002:8002 \
   --name reporter \
+  --link reporter-redis:redis \
   -v ${PWD}/data:/data/valhalla \
   opentraffic/reporter
 

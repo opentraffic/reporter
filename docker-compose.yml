@@ -1,6 +1,13 @@
 version: '2'
 
 services:
+  redis:
+    image: redis:3.2.6
+    networks:
+      - opentraffic
+    ports:
+      - "6379:6379"
+
   reporter:
     image: opentraffic/reporter:latest
     networks:
