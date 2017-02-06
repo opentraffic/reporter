@@ -16,6 +16,8 @@ services:
       - "8002:8002"
     volumes:
       - ${DATAPATH}:/data/valhalla
+    environment:
+      - REDIS_HOST=redis
 
 networks:
   opentraffic:
