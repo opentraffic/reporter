@@ -42,6 +42,6 @@ cat ${PWD}/data/reporter_requests.json | \
     -j2 \
     --halt 2 \
     --progress \
-    curl -s --data '{}' localhost:8002/segment_match?
+    curl --fail -s --data '{}' localhost:8002/segment_match?
 
 echo "Done!"
