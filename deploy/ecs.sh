@@ -51,8 +51,8 @@ make_task_def(){
       "name": "opentraffic-reporter",
       "image": "%s.dkr.ecr.us-east-1.amazonaws.com/opentraffic/reporter:%s",
       "essential": true,
-      "memory": %s,
-      "cpu": %s,
+      "memory": 512,
+      "cpu": 1024,
       "environment": [
         {
         }
@@ -66,7 +66,7 @@ make_task_def(){
     }
   ]'
 
-    task_def=$(printf "$task_template" $AWS_ACCOUNT_ID $CIRCLE_SHA1 $TASK_MEMORY $TASK_CPU)
+    task_def=$(printf "$task_template" $AWS_ACCOUNT_ID $CIRCLE_SHA1)
 }
 
 push_ecr_image(){
