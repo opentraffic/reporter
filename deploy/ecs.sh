@@ -17,7 +17,7 @@ configure_aws_cli(){
 }
 
 deploy_cluster() {
-  family="opentraffic-reporter-task-family"
+  family="opentraffic-reporter"
 
   make_task_def
   register_definition
