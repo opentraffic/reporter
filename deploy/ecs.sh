@@ -57,7 +57,7 @@ make_task_def(){
   task_template='[
     {
       "name": "opentraffic-reporter",
-      "image": "%s.dkr.ecr.us-east-1.amazonaws.com/opentraffic/reporter:%s",
+      "image": "%s.dkr.ecr.us-east-1.amazonaws.com/opentraffic/reporter-%s:%s",
       "essential": true,
       "memory": 512,
       "cpu": 512,
@@ -76,12 +76,12 @@ make_task_def(){
     }
   ]'
 
-  task_def=$(printf "$task_template" $AWS_ACCOUNT_ID $CIRCLE_SHA1 $ENV_$REDIS_HOST)
+  task_def=$(printf "$task_template" $AWS_ACCOUNT_ID $ENV $CIRCLE_SHA1 $ENV_$REDIS_HOST)
 }
 
 push_ecr_image(){
   eval $(aws ecr get-login --region us-east-1)
-  docker push $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/opentraffic/reporter:$CIRCLE_SHA1
+  docker push $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/opentraffic/reporter-$ENV:$CIRCLE_SHA1
 }
 
 register_definition() {
