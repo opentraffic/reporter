@@ -10,8 +10,9 @@ aws s3 cp --recursive s3://circleci_reporter data
 # start the container
 echo "Starting the redis container..."
 docker run \
+  -d \
   --name reporter-redis \
-  -d redis:3.2.6
+  redis:3.2.6
 
 echo "Starting the reporter container..."
 docker run \
@@ -20,7 +21,7 @@ docker run \
   --name reporter \
   --link reporter-redis:redis \
   -v ${PWD}/data:/data/valhalla \
-  $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/opentraffic/reporter:$CIRCLE_SHA1 .
+  $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/opentraffic/reporter:$CIRCLE_SHA1
 
 sleep 5
 
