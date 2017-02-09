@@ -63,8 +63,8 @@ make_task_def(){
       "cpu": 1024,
       "environment": [
         {
-          "name": "something",
-          "value": "something_else"
+          "name": "REDIS_HOST",
+          "value": "create_an_elasticache_instance"
         }
       ],
       "portMappings": [
