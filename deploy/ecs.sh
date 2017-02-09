@@ -55,6 +55,8 @@ make_task_def(){
       "cpu": 1024,
       "environment": [
         {
+          "name": "something",
+          "value": "something_else"
         }
       ],
       "portMappings": [
