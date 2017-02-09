@@ -64,7 +64,7 @@ make_task_def(){
       "environment": [
         {
           "name": "REDIS_HOST",
-          "value": "create_an_elasticache_instance"
+          "value": "%s"
         }
       ],
       "portMappings": [
@@ -76,7 +76,7 @@ make_task_def(){
     }
   ]'
 
-    task_def=$(printf "$task_template" $AWS_ACCOUNT_ID $CIRCLE_SHA1)
+    task_def=$(printf "$task_template" $AWS_ACCOUNT_ID $CIRCLE_SHA1 $REDIS_HOST)
 }
 
 push_ecr_image(){
