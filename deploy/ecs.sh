@@ -60,7 +60,7 @@ make_task_def(){
       "image": "%s.dkr.ecr.us-east-1.amazonaws.com/opentraffic/reporter:%s",
       "essential": true,
       "memory": 512,
-      "cpu": 1024,
+      "cpu": 512,
       "environment": [
         {
           "name": "REDIS_HOST",
@@ -70,13 +70,13 @@ make_task_def(){
       "portMappings": [
         {
           "containerPort": 8002,
-          "hostPort": 8002
+          "hostPort": 0
         }
       ]
     }
   ]'
 
-    task_def=$(printf "$task_template" $AWS_ACCOUNT_ID $CIRCLE_SHA1 $REDIS_HOST)
+  task_def=$(printf "$task_template" $AWS_ACCOUNT_ID $CIRCLE_SHA1 $REDIS_HOST)
 }
 
 push_ecr_image(){
