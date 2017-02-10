@@ -76,7 +76,11 @@ make_task_def(){
     }
   ]'
 
-  task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $ENV $CIRCLE_SHA1 $ENV_REDIS_HOST)
+  # figure out vars per env
+  redis_host_raw=$(echo $`printf $ENV`_REDIS_HOST)
+  redis_host=$(eval echo $redis_host_raw)
+
+  task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $ENV $CIRCLE_SHA1 $redis_host)
 }
 
 push_ecr_image(){
