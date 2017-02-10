@@ -76,7 +76,7 @@ make_task_def(){
     }
   ]'
 
-  task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $ENV $CIRCLE_SHA1 $ENV_$REDIS_HOST)
+  task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $ENV $CIRCLE_SHA1 $ENV_REDIS_HOST)
 }
 
 push_ecr_image(){
