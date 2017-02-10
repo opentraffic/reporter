@@ -21,7 +21,7 @@ docker run \
   --name reporter \
   --link reporter-redis:redis \
   -v ${PWD}/data:/data/valhalla \
-  $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/opentraffic/reporter:$CIRCLE_SHA1
+  reporter:latest
 
 sleep 5
 
