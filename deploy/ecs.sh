@@ -25,7 +25,7 @@ configure_aws_cli(){
 }
 
 deploy_cluster() {
-  family="opentraffic-reporter"
+  family="opentraffic-reporter-$ENV"
 
   make_task_def
   register_definition
@@ -56,7 +56,7 @@ deploy_cluster() {
 make_task_def(){
   task_template='[
     {
-      "name": "opentraffic-reporter",
+      "name": "opentraffic-reporter-%s",
       "image": "%s.dkr.ecr.us-east-1.amazonaws.com/opentraffic/reporter-%s:%s",
       "essential": true,
       "memory": 512,
@@ -76,7 +76,7 @@ make_task_def(){
     }
   ]'
 
-  task_def=$(printf "$task_template" $AWS_ACCOUNT_ID $ENV $CIRCLE_SHA1 $ENV_$REDIS_HOST)
+  task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $ENV $CIRCLE_SHA1 $ENV_$REDIS_HOST)
 }
 
 push_ecr_image(){
