@@ -59,7 +59,7 @@ make_task_def(){
       "name": "opentraffic-reporter-%s",
       "image": "%s.dkr.ecr.us-east-1.amazonaws.com/opentraffic/reporter-%s:%s",
       "essential": true,
-      "memory": 512,
+      "memoryReservation": 512,
       "cpu": 512,
       "environment": [
         {
