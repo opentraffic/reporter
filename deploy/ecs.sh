@@ -78,7 +78,7 @@ make_task_def(){
         {
           "sourceVolume": "data",
           "containerPath": "/data/valhalla",
-          "readOnly": true
+          "readOnly": false
         }
       ]
     }
