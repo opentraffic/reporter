@@ -95,7 +95,7 @@ make_volume_def(){
   volume_template='[
     {
       "name": "data",
-      "host" {
+      "host": {
         "sourcePath": "/data/valhalla"
       }
     }
