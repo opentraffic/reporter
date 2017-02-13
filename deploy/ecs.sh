@@ -65,9 +65,8 @@ make_task_def(){
       "logConfiguration": {
         "logDriver": "awslogs",
           "options": {
-          "awslogs-group": "reporter",
-          "awslogs-region": "us-east-1",
-          "awslogs-stream-prefix": "%s"
+          "awslogs-group": "reporter-%s",
+          "awslogs-region": "us-east-1"
         }
       },
       "environment": [
