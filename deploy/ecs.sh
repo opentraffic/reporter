@@ -1,16 +1,28 @@
 #!/usr/bin/env bash
 
-if [ -z $1 ]; then
-  echo "Usage: $0 [prod|dev]"
-  exit 1
+usage() {
+  echo "Usage: $0 [prod|dev] [us-east-1]"
+  exit 2
+}
+
+if [ -z $2 ]; then
+  usage
 else
   case $1 in
     'prod'|'dev')
       ENV=$1
       ;;
     *)
-      echo "Usage: $0 [prod|dev]"
-      exit 2
+      usage
+      ;;
+  esac
+
+  case $2 in
+    'us-east-1')
+      REGION=$2
+      ;;
+    *)
+      usage
       ;;
   esac
 fi
@@ -20,7 +32,7 @@ JQ="jq --raw-output --exit-status"
 
 configure_aws_cli(){
   aws --version
-  aws configure set default.region us-east-1
+  aws configure set default.region $REGION
   aws configure set default.output json
 }
 
@@ -58,7 +70,7 @@ make_task_def(){
   task_template='[
     {
       "name": "opentraffic-reporter-%s",
-      "image": "%s.dkr.ecr.us-east-1.amazonaws.com/opentraffic/reporter-%s:%s",
+      "image": "%s.dkr.ecr.%s.amazonaws.com/opentraffic/reporter-%s:%s",
       "essential": true,
       "memoryReservation": 512,
       "cpu": 512,
@@ -95,7 +107,7 @@ make_task_def(){
   redis_host_raw=$(echo $`printf $ENV`_REDIS_HOST)
   redis_host=$(eval echo $redis_host_raw)
 
-  task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $ENV $CIRCLE_SHA1 $ENV $redis_host)
+  task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $REGION $ENV $CIRCLE_SHA1 $ENV $redis_host)
 }
 
 make_volume_def(){
@@ -111,9 +123,9 @@ make_volume_def(){
 }
 
 push_ecr_image(){
-  eval $(aws ecr get-login --region us-east-1)
-  docker tag reporter:latest $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/opentraffic/reporter-$ENV:$CIRCLE_SHA1
-  docker push $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/opentraffic/reporter-$ENV:$CIRCLE_SHA1
+  eval $(aws ecr get-login --region $REGION)
+  docker tag reporter:latest $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/opentraffic/reporter-$ENV:$CIRCLE_SHA1
+  docker push $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/opentraffic/reporter-$ENV:$CIRCLE_SHA1
 }
 
 register_definition() {
