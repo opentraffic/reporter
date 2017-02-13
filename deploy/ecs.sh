@@ -28,6 +28,7 @@ deploy_cluster() {
   family="opentraffic-reporter-$ENV"
 
   make_task_def
+  make_volume_def
   register_definition
 
   if [[ $(aws ecs update-service --cluster reporter-$ENV --service opentraffic-reporter-$ENV --task-definition $revision | $JQ '.service.taskDefinition') != $revision ]]; then
@@ -90,14 +91,17 @@ make_task_def(){
   task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $ENV $CIRCLE_SHA1 $redis_host)
 }
 
-volume_template='[
-  {
-    "name": "data",
-    "host" {
-      "sourcePath": "/data/valhalla"
+make_volume_def(){
+  volume_template='[
+    {
+      "name": "data",
+      "host" {
+        "sourcePath": "/data/valhalla"
+      }
     }
-  }
-]'
+  ]'
+  volume_def=$(printf "$volume_template")
+}
 
 push_ecr_image(){
   eval $(aws ecr get-login --region us-east-1)
