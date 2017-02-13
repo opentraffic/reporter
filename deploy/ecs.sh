@@ -72,6 +72,13 @@ make_task_def(){
           "containerPort": 8002,
           "hostPort": 0
         }
+      ],
+      "mountPoints": [
+        {
+          "sourceVolume": "data",
+          "containerPath": "/data/valhalla",
+          "readOnly": true
+        }
       ]
     }
   ]'
@@ -83,6 +90,15 @@ make_task_def(){
   task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $ENV $CIRCLE_SHA1 $redis_host)
 }
 
+volume_template='[
+  {
+    "name": "data",
+    "host" {
+      "sourcePath": "/data/valhalla"
+    }
+  }
+]'
+
 push_ecr_image(){
   eval $(aws ecr get-login --region us-east-1)
   docker tag reporter:latest $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/opentraffic/reporter-$ENV:$CIRCLE_SHA1
@@ -90,7 +106,7 @@ push_ecr_image(){
 }
 
 register_definition() {
-  if revision=$(aws ecs register-task-definition --container-definitions "$task_def" --family $family | $JQ '.taskDefinition.taskDefinitionArn'); then
+  if revision=$(aws ecs register-task-definition --volumes "$volume_template" --container-definitions "$task_def" --family $family | $JQ '.taskDefinition.taskDefinitionArn'); then
     echo "Revision: $revision"
   else
     echo "Failed to register task definition"
