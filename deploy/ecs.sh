@@ -62,6 +62,14 @@ make_task_def(){
       "essential": true,
       "memoryReservation": 512,
       "cpu": 512,
+      "logConfiguration": {
+        "logDriver": "awslogs",
+          "options": {
+          "awslogs-group": "reporter",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "%s"
+        }
+      },
       "environment": [
         {
           "name": "REDIS_HOST",
@@ -88,7 +96,7 @@ make_task_def(){
   redis_host_raw=$(echo $`printf $ENV`_REDIS_HOST)
   redis_host=$(eval echo $redis_host_raw)
 
-  task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $ENV $CIRCLE_SHA1 $redis_host)
+  task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $ENV $CIRCLE_SHA1 $ENV $redis_host)
 }
 
 make_volume_def(){
