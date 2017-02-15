@@ -18,8 +18,11 @@ deployment:
     branch: master
     commands:
       - deploy/ecs.sh prod us-east-1
-      - >
-        curl -H "Content-Type: application/json" --data '{"build": true}' -X POST "https://registry.hub.docker.com/u/opentraffic/reporter/trigger/${DOCKERHUB_TOKEN}/"
+      - docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
+      - docker tag reporter:latest opentraffic/reporter:latest
+      - docker push opentraffic/reporter:latest
+      - docker tag reporter:latest opentraffic/reporter:${CIRCLE_SHA1}
+      - docker push opentraffic/reporter:${CIRCLE_SHA1}
 
   dev:
     branch: dev
