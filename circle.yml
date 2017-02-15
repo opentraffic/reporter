@@ -20,6 +20,8 @@ deployment:
       - deploy/ecs.sh prod us-east-1
       - >
         curl -H "Content-Type: application/json" --data '{"source_type": "Branch", "source_name": "master"}' -X POST "https://registry.hub.docker.com/u/opentraffic/reporter/trigger/${DOCKERHUB_TOKEN}/"; echo
+      - >
+        curl -H "Content-Type: application/json" --data '{"source_type": "Tag", "source_name": "${CIRCLE_SHA1}"}' -X POST "https://registry.hub.docker.com/u/opentraffic/reporter/trigger/${DOCKERHUB_TOKEN}/"; echo
 
   dev:
     branch: dev
