@@ -24,7 +24,7 @@ deployment:
     commands:
       - deploy/ecs.sh dev us-east-1
 
-	dockerhub:
+	hub:
 		branch: master
 		commands:
       - >
