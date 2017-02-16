@@ -4,7 +4,9 @@ MAINTAINER Grant Heffernan <grant@mapzen.com>
 # env
 ENV DEBIAN_FRONTEND noninteractive
 
+ENV MATCHER_DATA_DIR ${MATCHER_DATA_DIR:-"/data/valhalla"}
 ENV MATCHER_CONF_FILE ${MATCHER_CONF_FILE:-"/etc/valhalla.json"}
+ENV MATCHER_TILE_EXTRACT ${MATCHER_TILE_EXTRACT:-"tiles.tar"}
 ENV MATCHER_BIND_ADDR ${MATCHER_BIND_ADDR:-"0.0.0.0"}
 ENV MATCHER_LISTEN_PORT ${MATCHER_LISTEN_PORT:-"8002"}
 
@@ -18,9 +20,12 @@ RUN apt-add-repository -y ppa:valhalla-routing/valhalla
 RUN apt-get update && apt-get install -y \
       python-valhalla
 
-# install code & default config
+# install code & config
 ADD ./py /reporter
-ADD http://raw.githubusercontent.com/valhalla/conf/master/valhalla.json /etc/valhalla.json
+RUN valhalla_build_config \
+      --mjolnir-tile-dir ${MATCHER_DATA_DIR} \
+      --mjolnir-tile-extract ${MATCHER_DATA_DIR}/${MATCHER_TILE_EXTRACT} \
+      >${MATCHER_CONF_FILE}
 
 # cleanup
 RUN apt-get clean && \
