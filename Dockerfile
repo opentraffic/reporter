@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y \
 RUN apt-add-repository -y ppa:kevinkreiser/prime-server
 RUN apt-add-repository -y ppa:valhalla-routing/valhalla
 RUN apt-get update && apt-get install -y \
+      valhalla-bin \
       python-valhalla${PYTHON_VALHALLA_VERSION}
 
 # install code & config
