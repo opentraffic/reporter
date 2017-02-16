@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y \
 RUN apt-add-repository -y ppa:kevinkreiser/prime-server
 RUN apt-add-repository -y ppa:valhalla-routing/valhalla
 RUN apt-get update && apt-get install -y \
-      python-valhalla
+      python-valhalla2.0.6
 
 # install code & config
 ADD ./py /reporter
