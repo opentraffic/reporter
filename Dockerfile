@@ -21,7 +21,7 @@ RUN apt-add-repository -y ppa:kevinkreiser/prime-server
 RUN apt-add-repository -y ppa:valhalla-routing/valhalla
 RUN apt-get update && apt-get install -y \
       valhalla-bin \
-      python-valhalla${PYTHON_VALHALLA_VERSION}
+      python-valhalla=${PYTHON_VALHALLA_VERSION}-0ubuntu1~xenial1
 
 # install code & config
 ADD ./py /reporter
