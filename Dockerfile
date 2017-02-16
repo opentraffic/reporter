@@ -4,6 +4,8 @@ MAINTAINER Grant Heffernan <grant@mapzen.com>
 # env
 ENV DEBIAN_FRONTEND noninteractive
 
+ENV PYTHON_VALHALLA_VERSION "2.0.6"
+
 ENV MATCHER_DATA_DIR ${MATCHER_DATA_DIR:-"/data/valhalla"}
 ENV MATCHER_CONF_FILE ${MATCHER_CONF_FILE:-"/etc/valhalla.json"}
 ENV MATCHER_TILE_EXTRACT ${MATCHER_TILE_EXTRACT:-"tiles.tar"}
@@ -18,7 +20,7 @@ RUN apt-get update && apt-get install -y \
 RUN apt-add-repository -y ppa:kevinkreiser/prime-server
 RUN apt-add-repository -y ppa:valhalla-routing/valhalla
 RUN apt-get update && apt-get install -y \
-      python-valhalla2.0.6
+      python-valhalla${PYTHON_VALHALLA_VERSION}
 
 # install code & config
 ADD ./py /reporter
