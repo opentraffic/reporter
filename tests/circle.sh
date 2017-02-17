@@ -43,7 +43,8 @@ docker run \
   -e "REDIS_HOST=redis" \
   -e "DATASTORE_URL=http://datastore:${datastore_port}" \
   --name reporter \
-  --link reporter-redis:redis datastore:datastore \
+  --link reporter-redis:redis \
+  --link datastore:datastore \
   -v ${PWD}/data:/data/valhalla \
   reporter:latest
 
