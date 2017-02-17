@@ -85,6 +85,12 @@ cat ${PWD}/${valhalla_data_dir}/reporter_requests.json | \
     -j2 \
     --halt 2 \
     --progress \
-    curl --max-time 3 --fail -s --data '{}' localhost:${reporter_port}/segment_match?
+    curl \
+      --fail \
+      --silent \
+      --max-time 3 \
+      --retry 3 \
+      --retry-delay 3 \
+      --data '{}' localhost:${reporter_port}/segment_match?
 
 echo "Done!"
