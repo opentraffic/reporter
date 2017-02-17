@@ -8,9 +8,12 @@ postgres_user="opentraffic"
 postgres_password="changeme"
 postgres_db="opentraffic"
 
+pg_data_dir="pg_data"
+valhalla_data_dir="valhalla_data"
+
 # download test data
 echo "Downloading test data..."
-aws s3 cp --recursive s3://circleci_reporter data
+aws s3 cp --recursive s3://circleci_reporter valhalla_data
 
 # start the containers
 echo "Starting the postgres container..."
@@ -29,7 +32,7 @@ echo "Starting the datastore container..."
 docker run \
   -d \
   -p ${datastore_port}:${datastore_port} \
-  -v ${PWD}/data:/data \
+  -v ${PWD}/${pg_data_dir}:/${pg_data_dir} \
   -e "POSTGRES_USER=${postgres_user}" \
   -e "POSTGRES_PASSWORD=${postgres_password}" \
   -e "POSTGRES_DB=${postgres_db}" \
@@ -53,7 +56,7 @@ docker run \
   --name reporter \
   --link reporter-redis:redis \
   --link datastore:datastore \
-  -v ${PWD}/data:/data/valhalla \
+  -v ${PWD}/${valhalla_data_dir}:/data/valhalla \
   reporter:latest
 
 sleep 3
