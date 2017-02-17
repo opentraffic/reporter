@@ -86,6 +86,10 @@ make_task_def(){
         {
           "name": "REDIS_HOST",
           "value": "%s"
+        },
+        {
+          "name": "DATASTORE_URL",
+          "value": "%s"
         }
       ],
       "portMappings": [
@@ -108,7 +112,10 @@ make_task_def(){
   redis_host_raw=$(echo $`printf $ENV`_REDIS_HOST)
   redis_host=$(eval echo $redis_host_raw)
 
-  task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $REGION $ENV $CIRCLE_SHA1 $ENV $REGION $redis_host)
+  datastore_url_raw=$(echo $`printf $ENV`_DATASTORE_URL)
+  datastore_url=$(eval echo $datastore_url_raw)
+
+  task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $REGION $ENV $CIRCLE_SHA1 $ENV $REGION $redis_host $datastore_url)
 }
 
 make_volume_def(){
