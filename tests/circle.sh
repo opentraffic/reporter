@@ -69,11 +69,11 @@ sudo lxc-attach \
 
 # basic json validation
 echo "Validating csv formatter output is valid json..."
-jq "." ${PWD}/data/reporter_requests.json >/dev/null
+jq "." ${PWD}/${valhalla_data_dir}/reporter_requests.json >/dev/null
 
 # test the generated data against the service
 echo "Running a subset of the test data through the matcher service..."
-cat ${PWD}/data/reporter_requests.json | \
+cat ${PWD}/${valhalla_data_dir}/reporter_requests.json | \
   head -50 | \
   parallel \
     -j2 \
