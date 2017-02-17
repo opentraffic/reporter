@@ -4,7 +4,7 @@ MAINTAINER Grant Heffernan <grant@mapzen.com>
 # env
 ENV DEBIAN_FRONTEND noninteractive
 
-ENV PYTHON_VALHALLA_VERSION "2.0.6"
+ENV PYTHON_VALHALLA_VERSION "2.0.8"
 
 ENV MATCHER_DATA_DIR ${MATCHER_DATA_DIR:-"/data/valhalla"}
 ENV MATCHER_CONF_FILE ${MATCHER_CONF_FILE:-"/etc/valhalla.json"}
