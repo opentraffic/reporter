@@ -18,7 +18,7 @@ docker run \
   -e 'POSTGRES_DB=opentraffic' \
   postgres:9.6.1
 
-echo "Sleeping to allow creating of database..."
+echo "Sleeping to allow creation of database..."
 sleep 5
 
 echo "Starting the datastore container..."
