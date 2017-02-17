@@ -4,7 +4,7 @@ services:
   postgres:
     image: postgres:9.6.1
     networks:
-      - opentraffic_datastore
+      - opentraffic
     ports:
       - "5432:5432"
     volumes:
@@ -18,7 +18,7 @@ services:
   datastore:
     image: opentraffic/datastore:latest
     networks:
-      - opentraffic_datastore
+      - opentraffic
     ports:
       - "8003:8003"
     volumes:
