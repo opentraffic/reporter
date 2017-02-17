@@ -8,7 +8,7 @@ datastore_port=8003
 echo "Downloading test data..."
 aws s3 cp --recursive s3://circleci_reporter data
 
-# start the container
+# start the containers
 echo "Starting the postgres container..."
 docker run \
   -d \
