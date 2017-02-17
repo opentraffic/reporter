@@ -22,8 +22,8 @@ from SocketServer import ThreadingMixIn
 from cgi import urlparse
 import requests
 import valhalla
-import pdb
-import pprint
+#import pdb
+#import pprint
 
 actions = { 'segment_match': None }
 
@@ -96,7 +96,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     #lets get the vehicle id from json the request
     if params['vehicleId']:
-      print params['vehicleId']
       #do we already know something about this vehicleId already? Let's check Redis
       partial_kv = self.server.cache.get(params['vehicleId'])
       if partial_kv is not None:
@@ -104,15 +103,15 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         #TODO: we will need to prepend the last bit of shape from the partial_end segment that's already in Redis 
         # to the rest of the partial_start segment once it is returned from the segment_matcher
         #params['partial_start'] = json.loads(partial_kv)
-      else:
-        print "This vehicleId does not exist in cache " + params['vehicleId']
+      #else:
+      #  print "This vehicleId does not exist in cache " + params['vehicleId']
     else:
         raise Exception('No vehicleId in segment_match request!')
 
     #this return was used to avoid redis
     #return params, False
 
-    pdb.set_trace()
+    #pdb.set_trace()
     #ask valhalla to give back OSMLR segments along this trace
     result = self.server.segment_matcher.Match(json.dumps(params))
     segments_dict = json.loads(result)
@@ -138,7 +137,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #QA CHECKS
     #prints segments array info to terminal in csv format if partial start and end are false
     '''Segments need to be stored in the datastore'''
-    pprint.pprint(segments_dict['segments'])
+    #pprint.pprint(segments_dict['segments'])
     #******************************************************************#
 
     #javascriptify this
