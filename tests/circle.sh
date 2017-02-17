@@ -79,7 +79,7 @@ jq "." ${PWD}/${valhalla_data_dir}/reporter_requests.json >/dev/null
 
 # test the generated data against the service
 #
-echo "Running a subset of the test data through the matcher service..."
+echo "Running test data through the matcher service..."
 cat ${PWD}/${valhalla_data_dir}/reporter_requests.json | \
   parallel \
     -j2 \
