@@ -114,22 +114,24 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     result = self.server.segment_matcher.Match(json.dumps(trace))
     segments = json.loads(result)
 
+    #if there is something
     if len(segments['segments']):
       #if the last one is partial, store in Redis
       if segments['segments'][-1]['partial_end']:
         self.server.cache.setnx(uuid, segments['segments'][-1])
       #if any others are partial, we do not need so remove them
       segments['segments'] = [ seg for seg in segments['segments'] if not seg['partial_start'] and not seg['partial_end'] ]
-
-      #Now we will send the whole segments on to the datastore
       segments['mode'] = "auto"
       segments['provider'] = "GRAB" #os.enviorn['PROVIDER_ID']
       #segments['reporter_id'] = os.environ['REPORTER_ID']
-      response = requests.post(os.environ['DATASTORE_URL'], json.dumps(segments))
-      if response.status_code != 200:
-        sys.stderr.write(response.text)
-        sys.stderr.flush()
-        return 500, response.text
+
+      #Now we will send the whole segments on to the datastore
+      if len(segments['segments']):
+        response = requests.post(os.environ['DATASTORE_URL'], json.dumps(segments))
+        if response.status_code != 200:
+          sys.stderr.write(response.text)
+          sys.stderr.flush()
+          return 500, response.text
 
     #******************************************************************#
     #QA CHECKS
@@ -138,7 +140,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #******************************************************************#
 
     #hand it back
-    return 200, 'ok'
+    return 200, segments
 
   #send an answer
   def answer(self, code, body):
