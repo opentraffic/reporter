@@ -18,6 +18,7 @@ services:
       - ${DATAPATH}:/data/valhalla
     environment:
       - REDIS_HOST=redis
+      - DATASTORE_URL=http://postgres:8003/store?
 
 networks:
   opentraffic:

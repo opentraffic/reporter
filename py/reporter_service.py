@@ -2,23 +2,28 @@
 
 '''
 If you're running this from this directory you can start the server with the following command:
-PYTHONPATH=PYTHONPATH:../../tools/.libs ./reporter_service.py ../../conf/manila.json localhost:8002
+PYTHONPATH=PYTHONPATH:../../valhalla/valhalla/.libs REDIS_HOST=127.0.0.1 DATASTORE_URL='http://localhost:8003/store?' pdb py/reporter_service.py ../../conf/manila.json localhost:8002
+
+***NOTE:: Remove pdb from command and pdb.trace() below if you don't want to debug
 
 sample url looks like this:
 http://localhost:8002/segment_match?json=
 '''
-
+import os
 import sys
 import json
+import redis
 import multiprocessing
 import threading
-from Queue import Queue
 import socket
+from Queue import Queue
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 from SocketServer import ThreadingMixIn
 from cgi import urlparse
+import requests
 import valhalla
-import json
+import pdb
+import pprint
 
 actions = { 'segment_match': None }
 
@@ -40,6 +45,8 @@ class ThreadPoolMixIn(ThreadingMixIn):
 
   def process_request_thread(self):
     self.segment_matcher = valhalla.SegmentMatcher()
+    '''create redis env var to determine where to find Redis for each thread'''
+    self.cache = redis.Redis(host=os.environ['REDIS_HOST'])
     while True:
       request, client_address = self.requests.get()
       ThreadingMixIn.process_request_thread(self, request, client_address)
@@ -60,7 +67,7 @@ class ThreadedHTTPServer(ThreadPoolMixIn, HTTPServer):
 class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
   #parse the request because we dont get this for free!
-  def handle_request(self,post):
+  def handle_request(self, post):
     #split the query from the path
     try:
       split = urlparse.urlsplit(self.path)
@@ -76,6 +83,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     for k,v in params.iteritems():
       if len(v) == 1:
         params[k] = v[0]
+
     #save jsonp or not
     jsonp = params.get('jsonp', None)
     if params.has_key('json'):
@@ -86,15 +94,52 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     if post:
       params = json.loads(self.rfile.read(int(self.headers['Content-Length'])).decode('utf-8'))
 
+    #lets get the vehicle id from json the request
+    if params['vehicleId']:
+      print params['vehicleId']
+      #do we already know something about this vehicleId already? Let's check Redis
+      partial_kv = self.server.cache.get(params['vehicleId'])
+      if partial_kv is not None:
+        print "Partial key value for this vehicle already exists in Redis"
+        #TODO: we will need to prepend the last bit of shape from the partial_end segment that's already in Redis 
+        # to the rest of the partial_start segment once it is returned from the segment_matcher
+        #params['partial_start'] = json.loads(partial_kv)
+      else:
+        print "This vehicleId does not exist in cache " + params['vehicleId']
+    else:
+        raise Exception('No vehicleId in segment_match request!')
+
+    #this return was used to avoid redis
+    #return params, False
+
+    pdb.set_trace()
     #ask valhalla to give back OSMLR segments along this trace
     result = self.server.segment_matcher.Match(json.dumps(params))
-
-    #prints segments array info to terminal in csv format if partial start and end are false
     segments_dict = json.loads(result)
-    for seg in segments_dict['segments']:
-      if "false" in seg['partial_start'] and "false" in seg['partial_end']:
-        print ','.join([seg['segment_id'], seg['begin_time'], seg['end_time'], seg['length']])
-        sys.stdout.flush()
+
+    if len(segments_dict['segments']):
+      #if the last one is partial, store in Redis
+      if segments_dict['segments'][-1]['partial_end']:
+        self.server.cache.setnx(params['vehicleId'], segments_dict['segments'][-1])
+      #if any others are partial, we do not need so remove them
+      segments_dict['segments'] = [ seg for seg in segments_dict['segments'] if not seg['partial_start'] and not seg['partial_end'] ]
+
+      #Now we will send the whole segments on to the datastore
+      segments_dict['mode'] = "auto"
+      segments_dict['provider'] = "GRAB"
+      #segments_dict['reporter_id'] = os.environ['REPORTER_ID']
+      response = requests.post(url=os.environ['DATASTORE_URL'], data=json.dumps(segments_dict))
+
+      if response.status_code != 200:
+        sys.stderr.write(response.text)
+        sys.stderr.flush()
+
+    #******************************************************************#
+    #QA CHECKS
+    #prints segments array info to terminal in csv format if partial start and end are false
+    '''Segments need to be stored in the datastore'''
+    pprint.pprint(segments_dict['segments'])
+    #******************************************************************#
 
     #javascriptify this
     if jsonp:
