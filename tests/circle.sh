@@ -2,12 +2,34 @@
 set -e
 
 reporter_port=8002
+datastore_port=8003
 
 # download test data
 echo "Downloading test data..."
 aws s3 cp --recursive s3://circleci_reporter data
 
 # start the container
+echo "Starting the postgres container..."
+docker run \
+  -d \
+  --name datastore-postgres \
+  -e 'POSTGRES_USER=opentraffic' \
+  -e 'POSTGRES_PASSWORD=changeme' \
+  -e 'POSTGRES_DB=opentraffic' \
+  postgres:9.6.1
+
+echo "Sleeping to allow creating of database..."
+sleep 5
+
+echo "Starting the datastore container..."
+docker run \
+  -d \
+  -p ${datastore_port}:${datastore_port} \
+	-v ${PWD}/data:/data \
+  --name datastore \
+  --link datastore-postgres:postgres \
+  opentraffic/datastore:latest
+
 echo "Starting the redis container..."
 docker run \
   -d \
@@ -18,12 +40,14 @@ echo "Starting the reporter container..."
 docker run \
   -d \
   -p ${reporter_port}:${reporter_port} \
+  -e "REDIS_HOST=redis" \
+  -e "DATASTORE_URL=http://datastore:${datastore_port}" \
   --name reporter \
-  --link reporter-redis:redis \
+  --link reporter-redis:redis datastore:datastore \
   -v ${PWD}/data:/data/valhalla \
   reporter:latest
 
-sleep 5
+sleep 3
 
 # generate some test json data with the csv formatter,
 #   drop it in the bind mount so we can access it from
