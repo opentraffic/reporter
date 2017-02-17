@@ -25,7 +25,7 @@ echo "Starting the datastore container..."
 docker run \
   -d \
   -p ${datastore_port}:${datastore_port} \
-	-v ${PWD}/data:/data \
+  -v ${PWD}/data:/data \
   --name datastore \
   --link datastore-postgres:postgres \
   opentraffic/datastore:latest
