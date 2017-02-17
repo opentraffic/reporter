@@ -2,7 +2,7 @@
 
 '''
 If you're running this from this directory you can start the server with the following command:
-PYTHONPATH=PYTHONPATH:../../valhalla/valhalla/.libs REDIS_HOST=127.0.0.1 DATASTORE_URL='http://localhost:8003/store?' pdb py/reporter_service.py ../../conf/manila.json localhost:8002
+PYTHONPATH=PYTHONPATH:../../valhalla/valhalla/.libs REDIS_HOST=localhost DATASTORE_URL=http://localhost:8003/store? pdb py/reporter_service.py ../../conf/manila.json localhost:8002
 
 ***NOTE:: Remove pdb from command and pdb.trace() below if you don't want to debug
 
@@ -100,7 +100,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     #lets get the uuid from json the request
     uuid = trace.get('uuid')
-    if uuid:
+    if uuid is not None:
       #do we already know something about this vehicleId already? Let's check Redis
       partial_kv = self.server.cache.get(uuid)
       #if partial_kv is not None:

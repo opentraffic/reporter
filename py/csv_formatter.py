@@ -15,10 +15,9 @@ import calendar
 
 # Read the file
 with open(sys.argv[1], 'r') as csvfile:
-  columns = ("time","vehicleId","lat","lon")
+  columns = ("time","uuid","lat","lon")
   reader = csv.DictReader(csvfile, fieldnames=columns)
-  trace = []
-  uuid = 0
+  trace = {'trace':[]}
   # For each row of data
   for row in sorted(reader, key=itemgetter(columns[1], columns[0])):
     # Convert to epoch seconds
@@ -27,13 +26,15 @@ with open(sys.argv[1], 'r') as csvfile:
     row['lon'] = float(row['lon'])
     row['lat'] = float(row['lat'])
 
-    # Continuation of same vehicle Id
-    if len(trace) and row.get(columns[1]) == trace[-1].get(columns[1]):
+    # Continuation of same uuid
+    if len(trace) and row.get(columns[1]) == trace['uuid']:
+      del row[columns[1]]
       trace.append(row)
     # End the prior vehicle
     else:
       if len(trace):
-        print json.dumps({'uuid': uuid, 'trace':trace}, separators=(',',':'))
-        uuid += 1
+        print json.dumps(trace, separators=(',',':'))
         #print json.dumps({'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': [ [i['lon'], i['lat']] for i in trace ] }, 'properties':{'uuid':uuid}}, separators=(',',':')), ','
+      trace['uuid'] = row[columns[1]]
+      del row[columns[1]]
       trace = [ row ]
