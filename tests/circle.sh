@@ -1,19 +1,24 @@
 #!/usr/bin/env bash
 set -e
 
+# env
+#
 reporter_port=8002
 datastore_port=8003
 
 postgres_user="opentraffic"
 postgres_password="changeme"
 postgres_db="opentraffic"
-postgres_host="postgres"
+
+valhalla_data_dir="valhalla_data"
 
 # download test data
+#
 echo "Downloading test data..."
-aws s3 cp --recursive s3://circleci_reporter data
+aws s3 cp --recursive s3://circleci_reporter valhalla_data
 
 # start the containers
+#
 echo "Starting the postgres container..."
 docker run \
   -d \
@@ -30,11 +35,10 @@ echo "Starting the datastore container..."
 docker run \
   -d \
   -p ${datastore_port}:${datastore_port} \
-  -v ${PWD}/data:/data \
   -e "POSTGRES_USER=${postgres_user}" \
   -e "POSTGRES_PASSWORD=${postgres_password}" \
   -e "POSTGRES_DB=${postgres_db}" \
-  -e "POSTGRES_HOST=${postgres_host}" \
+  -e 'POSTGRES_HOST=postgres' \
   --name datastore \
   --link datastore-postgres:postgres \
   opentraffic/datastore:latest
@@ -54,7 +58,7 @@ docker run \
   --name reporter \
   --link reporter-redis:redis \
   --link datastore:datastore \
-  -v ${PWD}/data:/data/valhalla \
+  -v ${PWD}/${valhalla_data_dir}:/data/valhalla \
   reporter:latest
 
 sleep 3
@@ -62,18 +66,21 @@ sleep 3
 # generate some test json data with the csv formatter,
 #   drop it in the bind mount so we can access it from
 #   outside the container in the next test.
+#
 echo "Generating reporter request data with the csv formatter..."
 sudo lxc-attach \
   -n "$(docker inspect --format "{{.Id}}" reporter)" -- \
   bash -c "/reporter/csv_formatter.py /data/valhalla/grab.csv >/data/valhalla/reporter_requests.json"
 
 # basic json validation
+#
 echo "Validating csv formatter output is valid json..."
-jq "." ${PWD}/data/reporter_requests.json >/dev/null
+jq "." ${PWD}/${valhalla_data_dir}/reporter_requests.json >/dev/null
 
 # test the generated data against the service
+#
 echo "Running a subset of the test data through the matcher service..."
-cat ${PWD}/data/reporter_requests.json | \
+cat ${PWD}/${valhalla_data_dir}/reporter_requests.json | \
   head -50 | \
   parallel \
     -j2 \
