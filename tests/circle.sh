@@ -41,7 +41,7 @@ docker run \
   -d \
   -p ${reporter_port}:${reporter_port} \
   -e "REDIS_HOST=redis" \
-  -e "DATASTORE_URL=http://datastore:${datastore_port}" \
+  -e "DATASTORE_URL=http://datastore:${datastore_port}/store?" \
   --name reporter \
   --link reporter-redis:redis \
   --link datastore:datastore \
