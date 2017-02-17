@@ -81,7 +81,6 @@ jq "." ${PWD}/${valhalla_data_dir}/reporter_requests.json >/dev/null
 #
 echo "Running a subset of the test data through the matcher service..."
 cat ${PWD}/${valhalla_data_dir}/reporter_requests.json | \
-  head -50 | \
   parallel \
     -j2 \
     --halt 2 \
