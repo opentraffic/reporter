@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+# env
+#
 reporter_port=8002
 datastore_port=8003
 
@@ -11,10 +13,12 @@ postgres_db="opentraffic"
 valhalla_data_dir="valhalla_data"
 
 # download test data
+#
 echo "Downloading test data..."
 aws s3 cp --recursive s3://circleci_reporter valhalla_data
 
 # start the containers
+#
 echo "Starting the postgres container..."
 docker run \
   -d \
@@ -62,16 +66,19 @@ sleep 3
 # generate some test json data with the csv formatter,
 #   drop it in the bind mount so we can access it from
 #   outside the container in the next test.
+#
 echo "Generating reporter request data with the csv formatter..."
 sudo lxc-attach \
   -n "$(docker inspect --format "{{.Id}}" reporter)" -- \
   bash -c "/reporter/csv_formatter.py /data/valhalla/grab.csv >/data/valhalla/reporter_requests.json"
 
 # basic json validation
+#
 echo "Validating csv formatter output is valid json..."
 jq "." ${PWD}/${valhalla_data_dir}/reporter_requests.json >/dev/null
 
 # test the generated data against the service
+#
 echo "Running a subset of the test data through the matcher service..."
 cat ${PWD}/${valhalla_data_dir}/reporter_requests.json | \
   head -50 | \
