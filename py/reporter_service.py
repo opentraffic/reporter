@@ -23,7 +23,7 @@ from cgi import urlparse
 import requests
 import valhalla
 #import pdb
-#import pprint
+import pprint
 
 actions = { 'segment_match': None }
 
@@ -43,10 +43,12 @@ class ThreadPoolMixIn(ThreadingMixIn):
       self.handle_request()
     self.server_close()
 
-  def process_request_thread(self):
+  def make_thread_locals(self):
     self.segment_matcher = valhalla.SegmentMatcher()
-    '''create redis env var to determine where to find Redis for each thread'''
     self.cache = redis.Redis(host=os.environ['REDIS_HOST'])
+
+  def process_request_thread(self):
+    self.make_thread_locals()
     while True:
       request, client_address = self.requests.get()
       ThreadingMixIn.process_request_thread(self, request, client_address)
@@ -66,132 +68,104 @@ class ThreadedHTTPServer(ThreadPoolMixIn, HTTPServer):
 #custom handler for getting routes
 class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
-  #parse the request because we dont get this for free!
-  def handle_request(self, post):
+  #boiler plate parsing
+  def parse_trace(self, post):
     #split the query from the path
     try:
       split = urlparse.urlsplit(self.path)
     except:
       raise Exception('Try a url that looks like /action?query_string')
-    #path has the costing method and action in it
+    #path has the action in it
     try:
-      action = actions[split.path.split('/')[-1]]
+      if split.path.split('/')[-1] not in actions:
+        raise
     except:
       raise Exception('Try a valid action: ' + str([k for k in actions]))
-    #get a dict and unexplode non-list entries
-    params = urlparse.parse_qs(split.query)
-    for k,v in params.iteritems():
-      if len(v) == 1:
-        params[k] = v[0]
-
-    #save jsonp or not
-    jsonp = params.get('jsonp', None)
-    if params.has_key('json'):
-      params = json.loads(params['json'])
-    if jsonp is not None:
-      params['jsonp'] = jsonp
     #handle POST
     if post:
-      params = json.loads(self.rfile.read(int(self.headers['Content-Length'])).decode('utf-8'))
+      body = self.rfile.read(int(self.headers['Content-Length'])).decode('utf-8')
+      return json.loads(body)
+    #handle GET
+    else:
+      params = urlparse.parse_qs(split.query)
+      if 'json' in params:
+        return json.loads(params['json'][0])
+    raise Exception('No json provided')
 
-    #lets get the vehicle id from json the request
-    if params['vehicleId']:
+  #parse the request because we dont get this for free!
+  def handle_request(self, post):
+    #pdb.set_trace()
+    #get the reporter data
+    trace = self.parse_trace(post)
+
+    #lets get the uuid from json the request
+    uuid = trace.get('uuid')
+    if uuid:
       #do we already know something about this vehicleId already? Let's check Redis
-      partial_kv = self.server.cache.get(params['vehicleId'])
-      if partial_kv is not None:
-        print "Partial key value for this vehicle already exists in Redis"
+      partial_kv = self.server.cache.get(uuid)
+      #if partial_kv is not None:
         #TODO: we will need to prepend the last bit of shape from the partial_end segment that's already in Redis 
         # to the rest of the partial_start segment once it is returned from the segment_matcher
         #params['partial_start'] = json.loads(partial_kv)
-      #else:
-      #  print "This vehicleId does not exist in cache " + params['vehicleId']
     else:
-        raise Exception('No vehicleId in segment_match request!')
+      return 400, 'No uuid in segment_match request!'
 
-    #this return was used to avoid redis
-    #return params, False
-
-    #pdb.set_trace()
     #ask valhalla to give back OSMLR segments along this trace
-    result = self.server.segment_matcher.Match(json.dumps(params))
-    segments_dict = json.loads(result)
+    result = self.server.segment_matcher.Match(json.dumps(trace))
+    segments = json.loads(result)
 
-    if len(segments_dict['segments']):
+    if len(segments['segments']):
       #if the last one is partial, store in Redis
-      if segments_dict['segments'][-1]['partial_end']:
-        self.server.cache.setnx(params['vehicleId'], segments_dict['segments'][-1])
+      if segments['segments'][-1]['partial_end']:
+        self.server.cache.setnx(uuid, segments['segments'][-1])
       #if any others are partial, we do not need so remove them
-      segments_dict['segments'] = [ seg for seg in segments_dict['segments'] if not seg['partial_start'] and not seg['partial_end'] ]
+      segments['segments'] = [ seg for seg in segments['segments'] if not seg['partial_start'] and not seg['partial_end'] ]
 
       #Now we will send the whole segments on to the datastore
-      segments_dict['mode'] = "auto"
-      segments_dict['provider'] = "GRAB"
-      #segments_dict['reporter_id'] = os.environ['REPORTER_ID']
-      response = requests.post(url=os.environ['DATASTORE_URL'], data=json.dumps(segments_dict))
-
+      segments['mode'] = "auto"
+      segments['provider'] = "GRAB" #os.enviorn['PROVIDER_ID']
+      #segments['reporter_id'] = os.environ['REPORTER_ID']
+      response = requests.post(os.environ['DATASTORE_URL'], json.dumps(segments))
       if response.status_code != 200:
         sys.stderr.write(response.text)
         sys.stderr.flush()
+        return 500, response.text
 
     #******************************************************************#
     #QA CHECKS
     #prints segments array info to terminal in csv format if partial start and end are false
-    '''Segments need to be stored in the datastore'''
-    #pprint.pprint(segments_dict['segments'])
+    pprint.pprint(segments)
     #******************************************************************#
 
-    #javascriptify this
-    if jsonp:
-      result = jsonp + '=' + result + ';'
     #hand it back
-    return result, jsonp is not None
+    return 200, 'ok'
 
-  #send a success
-  def succeed(self, response, jsonp):
-    self.send_response(200)
+  #send an answer
+  def answer(self, code, body):
+    response = json.dumps({'response': body })
+    self.send_response(code)
 
     #set some basic info
     self.send_header('Access-Control-Allow-Origin','*')
-    if jsonp:
-      self.send_header('Content-type', 'text/plain;charset=utf-8')
-    else:
-      self.send_header('Content-type', 'application/json;charset=utf-8')
-      self.send_header('Content-length', len(response))
+    self.send_header('Content-type', 'application/json;charset=utf-8')
+    self.send_header('Content-length', len(response))
     self.end_headers()
 
     #hand it back
     self.wfile.write(response)
 
-  #send a fail
-  def fail(self, error):
-    self.send_response(400)
-
-    #set some basic info
-    self.send_header('Access-Control-Allow-Origin','*')
-    self.send_header('Content-type', 'text/plain;charset=utf-8')
-    self.send_header('Content-length', len(error))
-    self.end_headers()
-
-    #hand it back
-    self.wfile.write(str(error))
-
   #handle the request
+  def do(self, post):
+    try:
+      code, body = self.handle_request(post)
+      self.answer(code, body)
+    except Exception as e:
+      self.answer(400, str(e))
+
   def do_GET(self):
-    #get out the bits we care about
-    try:
-      response, jsonp = self.handle_request(False)
-      self.succeed(response, jsonp)
-    except Exception as e:
-      self.fail(str(e))
-
-  #handle the request
+    self.do(False)
   def do_POST(self):
-    #get out the bits we care about
-    try:
-      response, jsonp = self.handle_request(True)
-      self.succeed(response, jsonp)
-    except Exception as e:
-      self.fail(str(e))
+    self.do(True)
 
 
 #go off and wait for connections
@@ -205,6 +179,8 @@ if __name__ == '__main__':
     address = sys.argv[2].split('/')[-1].split(':')
     address[1] = int(address[1])
     address = tuple(address)
+    os.environ['REDIS_HOST']
+    os.environ['DATASTORE_URL']
   except Exception as e:
     sys.stderr.write('Problem with config file: {0}\n'.format(e)) 
     sys.exit(1)
