@@ -69,8 +69,7 @@ cat ${PWD}/data/reporter_requests.json | \
   parallel \
     -j2 \
     --halt 2 \
-    --max-time 3 \
     --progress \
-    curl --fail -s --data '{}' localhost:${reporter_port}/segment_match?
+    curl --max-time 3 --fail -s --data '{}' localhost:${reporter_port}/segment_match?
 
 echo "Done!"
