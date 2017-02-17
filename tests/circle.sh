@@ -4,6 +4,11 @@ set -e
 reporter_port=8002
 datastore_port=8003
 
+postgres_user="opentraffic"
+postgres_password="changeme"
+postgres_db="opentraffic"
+postgres_host="postgres"
+
 # download test data
 echo "Downloading test data..."
 aws s3 cp --recursive s3://circleci_reporter data
@@ -13,9 +18,9 @@ echo "Starting the postgres container..."
 docker run \
   -d \
   --name datastore-postgres \
-  -e 'POSTGRES_USER=opentraffic' \
-  -e 'POSTGRES_PASSWORD=changeme' \
-  -e 'POSTGRES_DB=opentraffic' \
+  -e "POSTGRES_USER=${postgres_user}" \
+  -e "POSTGRES_PASSWORD=${postgres_password}" \
+  -e "POSTGRES_DB=${postgres_db}" \
   postgres:9.6.1
 
 echo "Sleeping to allow creation of database..."
@@ -26,6 +31,10 @@ docker run \
   -d \
   -p ${datastore_port}:${datastore_port} \
   -v ${PWD}/data:/data \
+  -e "POSTGRES_USER=${postgres_user}" \
+  -e "POSTGRES_PASSWORD=${postgres_password}" \
+  -e "POSTGRES_DB=${postgres_db}" \
+  -e "POSTGRES_HOST=${postgres_host}" \
   --name datastore \
   --link datastore-postgres:postgres \
   opentraffic/datastore:latest
