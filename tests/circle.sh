@@ -7,7 +7,6 @@ datastore_port=8003
 postgres_user="opentraffic"
 postgres_password="changeme"
 postgres_db="opentraffic"
-postgres_host="postgres"
 
 # download test data
 echo "Downloading test data..."
@@ -34,7 +33,7 @@ docker run \
   -e "POSTGRES_USER=${postgres_user}" \
   -e "POSTGRES_PASSWORD=${postgres_password}" \
   -e "POSTGRES_DB=${postgres_db}" \
-  -e "POSTGRES_HOST=${postgres_host}" \
+  -e 'POSTGRES_HOST=postgres' \
   --name datastore \
   --link datastore-postgres:postgres \
   opentraffic/datastore:latest
