@@ -7,8 +7,20 @@ dependencies:
     - sudo apt-get update; sudo apt-get install awscli parallel jq
   override:
     - docker info
-    - docker build --rm=false -t opentraffic/reporter .
+    - docker build --rm=false -t reporter:latest .
 
 test:
   override:
     - ./tests/circle.sh
+
+deployment:
+  prod:
+    branch: master
+    commands:
+      - deploy/ecs.sh prod us-east-1
+      - deploy/dockerhub.sh
+
+  dev:
+    branch: dev
+    commands:
+      - deploy/ecs.sh dev us-east-1

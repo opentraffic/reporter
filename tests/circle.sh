@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+reporter_port=8002
+
 # download test data
 echo "Downloading test data..."
 aws s3 cp --recursive s3://circleci_reporter data
@@ -8,17 +10,18 @@ aws s3 cp --recursive s3://circleci_reporter data
 # start the container
 echo "Starting the redis container..."
 docker run \
+  -d \
   --name reporter-redis \
-  -d redis:3.2.6
+  redis:3.2.6
 
 echo "Starting the reporter container..."
 docker run \
   -d \
-  -p 8002:8002 \
+  -p ${reporter_port}:${reporter_port} \
   --name reporter \
   --link reporter-redis:redis \
   -v ${PWD}/data:/data/valhalla \
-  opentraffic/reporter
+  reporter:latest
 
 sleep 5
 
@@ -42,6 +45,6 @@ cat ${PWD}/data/reporter_requests.json | \
     -j2 \
     --halt 2 \
     --progress \
-    curl -s --data '{}' localhost:8002/segment_match?
+    curl --fail -s --data '{}' localhost:${reporter_port}/segment_match?
 
 echo "Done!"
