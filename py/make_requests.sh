@@ -37,4 +37,4 @@ done
 ) &
 
 #start making requests in the foreground
-./wait_cat.py ${files} | zcat - | ./to_json.py - | parallel --no-notice -j ${par} curl ${url} -w '\\n' -s --data '{}'
+./wait_cat.py ${files} | zcat - | ./to_post_body.py - | parallel --no-notice -j ${par} wget ${url} -O - -q --post-data '{}'\; echo ""
