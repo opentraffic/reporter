@@ -25,7 +25,7 @@ import valhalla
 #import pdb
 import pprint
 
-actions = { 'segment_match': None }
+actions = set(['report'])
 
 #use a thread pool instead of just frittering off new threads for every request
 class ThreadPoolMixIn(ThreadingMixIn):
@@ -136,25 +136,28 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #******************************************************************#
     #QA CHECKS
     #prints segments array info to terminal in csv format if partial start and end are false
-    pprint.pprint(segments)
+    #pprint.pprint(segments)
     #******************************************************************#
 
     #hand it back
-    return 200, segments
+    return 200, 'Reported on %d segments' % len(segments['segments'])
 
   #send an answer
   def answer(self, code, body):
     response = json.dumps({'response': body })
-    self.send_response(code)
+    try:
+      self.send_response(code)
 
-    #set some basic info
-    self.send_header('Access-Control-Allow-Origin','*')
-    self.send_header('Content-type', 'application/json;charset=utf-8')
-    self.send_header('Content-length', len(response))
-    self.end_headers()
+      #set some basic info
+      self.send_header('Access-Control-Allow-Origin','*')
+      self.send_header('Content-type', 'application/json;charset=utf-8')
+      self.send_header('Content-length', len(response))
+      self.end_headers()
 
-    #hand it back
-    self.wfile.write(response)
+      #hand it back
+      self.wfile.write(response)
+    except:
+      pass
 
   #handle the request
   def do(self, post):

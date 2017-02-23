@@ -91,6 +91,6 @@ cat ${PWD}/${valhalla_data_dir}/reporter_requests.json | \
       --max-time 3 \
       --retry 3 \
       --retry-delay 3 \
-      --data '{}' localhost:${reporter_port}/segment_match?
+      --data '{}' localhost:${reporter_port}/report?
 
 echo "Done!"
