@@ -59,11 +59,13 @@ deploy_cluster() {
       sleep 10
     else
       echo "Deployed!"
+      aws cloudwatch put-metric-data --metric-name deploy-succeeded --namespace reporter/$ENV --value 1
       return 0
     fi
   done
 
   echo "Service update took too long."
+  aws cloudwatch put-metric-data --metric-name deploy-failed --namespace reporter/$ENV --value 1
   return 1
 }
 
