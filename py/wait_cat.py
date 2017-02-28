@@ -18,6 +18,7 @@ def stream(handle, size=4096):
 parser = argparse.ArgumentParser(description='Like cat but will wait for files to exist', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('files', metavar='F', type=str, nargs='+', help='A file name to be sent to stdout')
 parser.add_argument('--file-separator', type=str, help='A string to write to at the end of each file', default='')
+parser.add_argument('--delete', action='store_true', help='Delete a file after cat\'ing its contents')
 args = parser.parse_args()
 
 #we are writing to stdout
@@ -39,6 +40,8 @@ while True:
       sys.stdout.flush()
       #done with this one
       wait_files.remove(wait_file)
+      if args.delete:
+        os.remove(wait_file)
       break
   #we're done
   if len(wait_files) == 0:
