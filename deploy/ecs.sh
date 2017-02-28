@@ -77,8 +77,8 @@ make_task_def(){
       "name": "opentraffic-reporter-%s",
       "image": "%s.dkr.ecr.%s.amazonaws.com/opentraffic/reporter-%s:%s",
       "essential": true,
-      "memoryReservation": 512,
-      "cpu": 1024,
+      "memoryReservation": 1024,
+      "cpu": 2048,
       "logConfiguration": {
         "logDriver": "awslogs",
           "options": {
