@@ -2,30 +2,54 @@
 set -e
 
 usage() {
-  echo "Usage: $0 [prod|dev] [us-east-1]"
+  echo "Usage: $0 --env [prod|dev] --region [us-east-1] --cpu-reservation [cpu] --mem-reservation [mem]"
   exit 2
 }
 
-if [ -z $2 ]; then
-  usage
-else
-  case $1 in
-    'prod'|'dev')
-      ENV=$1
-      ;;
-    *)
-      usage
-      ;;
-  esac
+## get vars: set defaults
+MEM=512
+CPU=1024
+REGION="us-east-1"
+ENV="bogus"
 
-  case $2 in
-    'us-east-1')
-      REGION=$2
-      ;;
-    *)
-      usage
-      ;;
-  esac
+if [ -z $1 ]
+then
+  usage
+fi
+
+while [[ $# -gt 0 ]]
+do
+  case "$1" in
+  --env|-e)
+    ENV=$2
+		shift
+    ;;
+
+  --region|-r)
+    REGION=$2
+		shift
+    ;;
+
+  --cpu-reservation|-c)
+    CPU=$2
+		shift
+    ;;
+
+  --mem-reservation|-m)
+    MEM=$2
+    shift
+    ;;
+
+  *)
+		usage
+    ;;
+	esac
+	shift
+done
+
+if [ "$ENV" == "bogus" ]; then
+	echo "You must set --env [env] in circle.yml!"
+	usage
 fi
 
 # more bash-friendly output for jq
@@ -77,8 +101,8 @@ make_task_def(){
       "name": "opentraffic-reporter-%s",
       "image": "%s.dkr.ecr.%s.amazonaws.com/opentraffic/reporter-%s:%s",
       "essential": true,
-      "memoryReservation": 1024,
-      "cpu": 2048,
+      "memoryReservation": %s,
+      "cpu": %s,
       "logConfiguration": {
         "logDriver": "awslogs",
           "options": {
@@ -119,7 +143,7 @@ make_task_def(){
   datastore_url_raw=$(echo $`printf $ENV`_DATASTORE_URL)
   datastore_url=$(eval echo $datastore_url_raw)
 
-  task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $REGION $ENV $CIRCLE_SHA1 $ENV $REGION $redis_host $datastore_url)
+  task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $REGION $ENV $CIRCLE_SHA1 $MEM $CPU $ENV $REGION $redis_host $datastore_url)
 }
 
 make_volume_def(){

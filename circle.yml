@@ -17,10 +17,18 @@ deployment:
   prod:
     branch: master
     commands:
-      - deploy/ecs.sh prod us-east-1
+      - deploy/ecs.sh \
+        --env prod \
+        --region us-east-1 \
+        --cpu-reservation 2048 \
+        --mem-reservation 1024
       - deploy/dockerhub.sh
 
   dev:
     branch: dev
     commands:
-      - deploy/ecs.sh dev us-east-1
+      - deploy/ecs.sh \
+        --env dev \
+        --region us-east-1 \
+        --cpu-reservation 1024 \
+        --mem-reservation 512
