@@ -29,12 +29,10 @@ echo "Processing $(echo ${files} | tr ' ' '\n' | wc -l) files"
 #start downloading them in the background
 (
 for file in ${files}; do
-  if [[ ! -e ${file} ]]; then
-    echo "Retrieving ${file} from s3"
-    aws s3 cp ${dir}${file} . &> /dev/null
-  fi
+  echo "Retrieving ${file} from s3"
+  aws s3 cp ${dir}${file} . &> /dev/null
 done
 ) &
 
 #start making requests in the foreground
-./wait_cat.py ${files} | zcat - | ./to_post_body.py - | parallel --no-notice -j ${par} wget ${url} -O - -q --post-data '{}'\; echo ""
+./wait_cat.py --delete ${files} | zcat - | ./to_post_body.py - | parallel --no-notice -j ${par} wget ${url} -O - -q --post-data '{}'\; echo ""
