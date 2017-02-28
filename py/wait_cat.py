@@ -4,7 +4,6 @@ import os
 import time
 import argparse
 
-
 #generator for streaming a file
 def stream(handle, size=4096):
   while True:
@@ -12,7 +11,6 @@ def stream(handle, size=4096):
     if not chunk:
       break
     yield chunk
-
 
 #allow a file separator so stuff downstream can know
 parser = argparse.ArgumentParser(description='Like cat but will wait for files to exist', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -41,6 +39,8 @@ while True:
       #done with this one
       wait_files.remove(wait_file)
       if args.delete:
+        sys.stderr.write('Removing ' + wait_file + os.linesep)
+        sys.stderr.flush()
         os.remove(wait_file)
       break
   #we're done
