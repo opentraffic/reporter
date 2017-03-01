@@ -2,7 +2,7 @@
 set -e
 
 usage() {
-  echo "Usage: $0 --env [prod|dev] --region [us-east-1] --cpu-reservation [cpu] --mem-reservation [mem]"
+  echo "Usage: $0 --env [prod|dev] --region [us-east-1] --cpu-reservation [int] --mem-reservation [int]"
   exit 2
 }
 
@@ -12,8 +12,7 @@ CPU=1024
 REGION="us-east-1"
 ENV="bogus"
 
-if [ -z $1 ]
-then
+if [ -z $1 ]; then
   usage
 fi
 
@@ -21,23 +20,50 @@ while [[ $# -gt 0 ]]
 do
   case "$1" in
   --env|-e)
-    ENV=$2
-		shift
+    case "$2" in
+      'prod'|'dev')
+        ENV=$2
+		    shift
+       ;;
+
+      *)
+        usage
+        ;;
+    esac
     ;;
 
   --region|-r)
-    REGION=$2
-		shift
+    case "$2" in
+      'us-east-1')
+        REGION=$2
+		    shift
+        ;;
+      *)
+        usage
+        ;;
+    esac
     ;;
 
   --cpu-reservation|-c)
-    CPU=$2
-		shift
+		re='^[0-9]+$'
+		if ! [[ "$2" =~ $re ]]; then
+      echo "error: --cpu-reservation needs to be an integer" >&2
+      usage
+    else
+      CPU=$2
+		  shift
+    fi
     ;;
 
   --mem-reservation|-m)
-    MEM=$2
-    shift
+		re='^[0-9]+$'
+		if ! [[ "$2" =~ $re ]]; then
+      echo "error: --mem-reservation needs to be an integer" >&2
+      usage
+    else
+      MEM=$2
+		  shift
+    fi
     ;;
 
   *)
