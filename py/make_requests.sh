@@ -9,7 +9,7 @@ fi
 set -e
 
 function usage {
-  echo -e "Usage:\n-s s3 bucket url\n-f regex to use with grep to get interesting files\n-u reporter url\n-j concurrency for posting requests\n-b whether to run in the background or not\n" 1>&2
+  echo -e "Usage:\n-s s3 bucket url\n-f regex to use with grep to get interesting files\n-u reporter url\n-j concurrency for posting requests\n-b whether to run in the downloads in the background or not\n" 1>&2
   echo "Example: AWS_DEFAULT_PROFILE=big_data $0 -s s3://heaps_of_data/2016_11/ -f 2016_11_01.*gz -u http://opentraffic.io/report? -j 16 -b" 1>&2
   echo "Note: bucket listing is not recursive" 1>&2
   echo "Note: data is pipe delimited: date|id|x|x|x|x|x|x|x|lat|lon|x|x with date format: %Y-%m-%d %H:%M:%S" 1>&2
