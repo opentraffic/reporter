@@ -109,16 +109,13 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         time_diff = trace['trace'][0]['time'] - partial[-1]['time']
         #check to make sure time is not stale and not in future
         if time_diff < os.environ.get('STALE_TIME', 60) and time_diff >= 0:
-          #We will need to prepend the last bit of shape from the partial_end segment that's already in Redis 
-          # to the rest of the partial_start segment once it is returned from the segment_matcher
+          #Now prepend the last bit of shape from the partial_end segment that's already in Redis
+          #to the rest of the partial_start segment once it is returned from the segment_matcher
           trace['trace'] = partial + trace['trace']
     else:
       return 400, 'No uuid in segment_match request!'
 
     #ask valhalla to give back OSMLR segments along this trace
-    #temporary - for debugging
-    for t in trace['trace']:
-      print t['time']
     result = self.server.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
     segments = json.loads(result)
     #print '###########Segment Matcher Response, can include partials'
