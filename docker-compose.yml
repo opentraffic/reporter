@@ -19,6 +19,8 @@ services:
     environment:
       - REDIS_HOST=redis
       - DATASTORE_URL=http://172.17.0.1:8003/store?
+      - STALE_TIME=60
+      - PARTIAL_EXPIRY=300
 
 networks:
   opentraffic:
