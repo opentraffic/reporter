@@ -108,7 +108,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         partial = pickle.loads(partial)
         time_diff = trace['trace'][0]['time'] - partial[-1]['time']
         #check to make sure time is not stale and not in future
-        if time_diff < os.environ['STALE_TIME'] and time_diff >= 0:
+        if time_diff < os.environ.get('STALE_TIME', 60) and time_diff >= 0:
           #We will need to prepend the last bit of shape from the partial_end segment that's already in Redis 
           # to the rest of the partial_start segment once it is returned from the segment_matcher
           trace['trace'] = partial + trace['trace']
@@ -134,7 +134,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         if begin_index != 0:
           begin_index -= 1
         #in Redis, set the uuid as key and trace from the begin index to the end
-        self.server.cache.set(uuid, pickle.dumps(trace['trace'][begin_index:]), ex=os.environ['PARTIAL_EXPIRY'])
+        self.server.cache.set(uuid, pickle.dumps(trace['trace'][begin_index:]), ex=os.environ.get('PARTIAL_EXPIRY', 300))
       #if any others are partial, we do not need so remove them
       segments['segments'] = [ seg for seg in segments['segments'] if not seg['partial_start'] and not seg['partial_end'] ]
       segments['mode'] = "auto"
@@ -203,8 +203,7 @@ if __name__ == '__main__':
     address = tuple(address)
     os.environ['REDIS_HOST']
     os.environ['DATASTORE_URL']
-    os.environ['STALE_TIME']
-    os.environ['PARTIAL_EXPIRY']
+
   except Exception as e:
     sys.stderr.write('Problem with config file: {0}\n'.format(e)) 
     sys.exit(1)
