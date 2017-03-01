@@ -18,7 +18,7 @@ function usage {
 
 par=$(nproc)
 unset bgrnd
-while getopts ":s:f:u:j:b:" opt; do
+while getopts ":s:f:u:j:b" opt; do
   case $opt in
     s) s3_dir=$(echo ${OPTARG} | sed -e 's@/\?$@/@g')
     ;;
@@ -41,10 +41,12 @@ fi
 
 #get all the list of files we'll be working with
 echo "Retrieving file list from s3"
-files=$(aws s3 ls ${s3_dir} | awk '{print $4}' | grep -E ${file_re} | head -n 3 | tr '\n' ' ')
+files=$(aws s3 ls ${s3_dir} | awk '{print $4}' | grep -E ${file_re} | tr '\n' ' ')
 echo "Processing $(echo ${files} | tr ' ' '\n' | wc -l) files"
 
-if [ -z ${bgrnd} ]; then
+
+if [[ ! -z ${bgrnd+x} ]]; then
+  echo "Continuously POST'ing..."
   #start downloading them in the background
   (
     for file in ${files}; do
@@ -54,15 +56,13 @@ if [ -z ${bgrnd} ]; then
     done
   ) &
   #start making requests in the foreground
-  ./wait_cat.py --delete ${files} | zcat - | ./to_post_body.py - &> x
-  #./wait_cat.py --delete ${files} | zcat - | ./to_post_body.py - | parallel --no-notice -j ${par} wget ${url} -O - -q --post-data '{}'\; echo ""
+  ./wait_cat.py --delete ${files} | zcat - | ./to_post_body.py - | parallel --no-notice -j ${par} wget ${url} -O - -q --post-data '{}'\; echo ""
 else
   for file in ${files}; do
     #download in the foreground
     echo "Retrieving ${file} from s3" && aws s3 cp ${s3_dir}${file} . &> /dev/null
     #make requests with just this file
-    zcat ${file} | ./to_post_body.py - &> x
-    #zcat ${file} | ./to_post_body.py - | parallel --no-notice -j ${par} wget ${url} -O - -q --post-data '{}'\; echo ""
+    zcat ${file} | ./to_post_body.py - | parallel --no-notice -j ${par} wget ${url} -O - -q --post-data '{}'\; echo ""
     #done with this
     echo "Finished POST'ing ${file}" && rm -f ${file}
   done
