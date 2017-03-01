@@ -2,30 +2,80 @@
 set -e
 
 usage() {
-  echo "Usage: $0 [prod|dev] [us-east-1]"
+  echo "Usage: $0 --env [prod|dev] --region [us-east-1] --cpu-reservation [int] --mem-reservation [int]"
   exit 2
 }
 
-if [ -z $2 ]; then
-  usage
-else
-  case $1 in
-    'prod'|'dev')
-      ENV=$1
-      ;;
-    *)
-      usage
-      ;;
-  esac
+## get vars: set defaults
+MEM=512
+CPU=1024
+REGION="us-east-1"
+ENV="bogus"
 
-  case $2 in
-    'us-east-1')
-      REGION=$2
+if [ -z $1 ]; then
+  usage
+fi
+
+while [[ $# -gt 0 ]]
+do
+  case "$1" in
+    --env|-e)
+      case "$2" in
+        'prod'|'dev')
+          ENV=$2
+		      shift
+        ;;
+
+        *)
+          usage
+          ;;
+      esac
       ;;
+
+    --region|-r)
+      case "$2" in
+        'us-east-1')
+          REGION=$2
+		      shift
+          ;;
+        *)
+          usage
+          ;;
+      esac
+      ;;
+
+    --cpu-reservation|-c)
+		  re='^[0-9]+$'
+		  if ! [[ "$2" =~ $re ]]; then
+        echo "error: --cpu-reservation needs to be an integer" >&2
+        usage
+      else
+        CPU=$2
+		    shift
+      fi
+      ;;
+
+    --mem-reservation|-m)
+		  re='^[0-9]+$'
+		  if ! [[ "$2" =~ $re ]]; then
+        echo "error: --mem-reservation needs to be an integer" >&2
+        usage
+      else
+        MEM=$2
+		    shift
+      fi
+      ;;
+
     *)
-      usage
+		  usage
       ;;
-  esac
+	esac
+	shift
+done
+
+if [ "$ENV" == "bogus" ]; then
+	echo "You must set --env [env] in circle.yml!"
+	usage
 fi
 
 # more bash-friendly output for jq
@@ -77,8 +127,8 @@ make_task_def(){
       "name": "opentraffic-reporter-%s",
       "image": "%s.dkr.ecr.%s.amazonaws.com/opentraffic/reporter-%s:%s",
       "essential": true,
-      "memoryReservation": 512,
-      "cpu": 1024,
+      "memoryReservation": %s,
+      "cpu": %s,
       "logConfiguration": {
         "logDriver": "awslogs",
           "options": {
@@ -119,7 +169,7 @@ make_task_def(){
   datastore_url_raw=$(echo $`printf $ENV`_DATASTORE_URL)
   datastore_url=$(eval echo $datastore_url_raw)
 
-  task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $REGION $ENV $CIRCLE_SHA1 $ENV $REGION $redis_host $datastore_url)
+  task_def=$(printf "$task_template" $ENV $AWS_ACCOUNT_ID $REGION $ENV $CIRCLE_SHA1 $MEM $CPU $ENV $REGION $redis_host $datastore_url)
 }
 
 make_volume_def(){
