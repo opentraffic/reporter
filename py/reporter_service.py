@@ -28,6 +28,9 @@ import pickle
 
 actions = set(['report'])
 
+# this is where thread local storage lives
+thread_local = threading.local()
+
 #use a thread pool instead of just frittering off new threads for every request
 class ThreadPoolMixIn(ThreadingMixIn):
   allow_reuse_address = True  # seems to fix socket.error on server restart
@@ -46,8 +49,8 @@ class ThreadPoolMixIn(ThreadingMixIn):
     self.server_close()
 
   def make_thread_locals(self):
-    self.segment_matcher = valhalla.SegmentMatcher()
-    self.cache = redis.Redis(host=os.environ['REDIS_HOST'])
+    setattr(thread_local, 'segment_matcher', valhalla.SegmentMatcher())
+    setattr(thread_local, 'cache', redis.Redis(host=os.environ['REDIS_HOST']))
 
   def process_request_thread(self):
     self.make_thread_locals()
@@ -104,7 +107,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #pdb.set_trace()
     if uuid is not None:
       #do we already know something about this vehicleId already? Let's check Redis
-      partial = self.server.cache.get(uuid)
+      partial = thread_local.cache.get(uuid)
       if partial:
         partial = pickle.loads(partial)
         time_diff = trace['trace'][0]['time'] - partial[-1]['time']
@@ -117,7 +120,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       return 400, 'No uuid in segment_match request!'
 
     #ask valhalla to give back OSMLR segments along this trace
-    result = self.server.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
+    result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
     segments = json.loads(result)
     #print '###########Segment Matcher Response, can include partials'
     #pprint.pprint(segments)
@@ -132,7 +135,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         if begin_index != 0:
           begin_index -= 1
         #in Redis, set the uuid as key and trace from the begin index to the end
-        self.server.cache.set(uuid, pickle.dumps(trace['trace'][begin_index:]), ex=os.environ.get('PARTIAL_EXPIRY', 300))
+        thread_local.cache.set(uuid, pickle.dumps(trace['trace'][begin_index:]), ex=os.environ.get('PARTIAL_EXPIRY', 300))
       #if any others are partial, we do not need so remove them
       segments['segments'] = [ seg for seg in segments['segments'] if not seg['partial_start'] and not seg['partial_end'] ]
       segments['mode'] = "auto"
