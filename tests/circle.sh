@@ -3,14 +3,8 @@ set -e
 
 # env
 #
-reporter_port=8002
-datastore_port=8003
-
-postgres_user="opentraffic"
-postgres_password="changeme"
-postgres_db="opentraffic"
-
-valhalla_data_dir="valhalla_data"
+echo "Sourcing env from ./tests/env.sh..."
+. ./tests/env.sh
 
 # download test data
 #
@@ -81,16 +75,17 @@ jq "." ${PWD}/${valhalla_data_dir}/reporter_requests.json >/dev/null
 #
 echo "Running test data through the matcher service..."
 cat ${PWD}/${valhalla_data_dir}/reporter_requests.json | \
-  parallel \
-    -j2 \
-    --halt 2 \
-    --progress \
-    curl \
-      --fail \
-      --silent \
-      --max-time 3 \
-      --retry 3 \
-      --retry-delay 3 \
-      --data '{}' localhost:${reporter_port}/report?
+  head -50 | \
+    parallel \
+      -j2 \
+      --halt 2 \
+      --progress \
+      curl \
+        --fail \
+        --silent \
+        --max-time 3 \
+        --retry 3 \
+        --retry-delay 3 \
+        --data '{}' localhost:${reporter_port}/report?
 
 echo "Done!"

@@ -25,3 +25,4 @@ deployment:
     branch: dev
     commands:
       - ecs-deploy/bin/deploy.sh --env dev --region us-east-1 --project reporter
+      - ./tests/live.sh "https://reporter-dev.opentraffic.io/report?"
