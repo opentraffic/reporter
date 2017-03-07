@@ -2,7 +2,7 @@
 set -e
 
 echo "Logging into dockerhub..."
-docker login -e ${DOCKER_EMAIL} -u ${DOCKER_USER} -p ${DOCKER_PASS}
+docker login -e "${DOCKER_EMAIL}" -u "${DOCKER_USER}" -p "${DOCKER_PASS}"
 
 echo "Tagging and pushing latest build..."
 docker tag reporter:latest opentraffic/reporter:latest
