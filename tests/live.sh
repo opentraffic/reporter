@@ -18,7 +18,7 @@ else
 fi
 
 echo "Running a subset of test data through $URL..."
-cat ${PWD}/${valhalla_data_dir}/reporter_requests.json | head -50 \
+cat ${PWD}/${valhalla_data_dir}/reporter_requests.json | \
   parallel \
     -j4 \
     --halt 2 \
