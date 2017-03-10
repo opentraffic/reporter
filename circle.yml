@@ -20,7 +20,6 @@ deployment:
     branch: master
     commands:
       - ecs-deploy/bin/deploy.sh --env prod --region us-east-1 --project reporter
-      - ./tests/live.sh "https://reporter.opentraffic.io/report?"
       - hub-deploy/bin/deploy.sh reporter
 
   dev:
