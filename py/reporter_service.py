@@ -24,8 +24,12 @@ import requests
 import valhalla
 #import pdb
 import pprint
+import pickle
 
 actions = set(['report'])
+
+# this is where thread local storage lives
+thread_local = threading.local()
 
 #use a thread pool instead of just frittering off new threads for every request
 class ThreadPoolMixIn(ThreadingMixIn):
@@ -45,8 +49,8 @@ class ThreadPoolMixIn(ThreadingMixIn):
     self.server_close()
 
   def make_thread_locals(self):
-    self.segment_matcher = valhalla.SegmentMatcher()
-    self.cache = redis.Redis(host=os.environ['REDIS_HOST'])
+    setattr(thread_local, 'segment_matcher', valhalla.SegmentMatcher())
+    setattr(thread_local, 'cache', redis.Redis(host=os.environ['REDIS_HOST']))
 
   def process_request_thread(self):
     self.make_thread_locals()
@@ -95,31 +99,43 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
   #parse the request because we dont get this for free!
   def handle_request(self, post):
-    #pdb.set_trace()
     #get the reporter data
     trace = self.parse_trace(post)
 
     #lets get the uuid from json the request
     uuid = trace.get('uuid')
+    #pdb.set_trace()
     if uuid is not None:
       #do we already know something about this vehicleId already? Let's check Redis
-      partial_kv = self.server.cache.get(uuid)
-      #if partial_kv is not None:
-        #TODO: we will need to prepend the last bit of shape from the partial_end segment that's already in Redis 
-        # to the rest of the partial_start segment once it is returned from the segment_matcher
-        #params['partial_start'] = json.loads(partial_kv)
+      partial = thread_local.cache.get(uuid)
+      if partial:
+        partial = pickle.loads(partial)
+        time_diff = trace['trace'][0]['time'] - partial[-1]['time']
+        #check to make sure time is not stale and not in future
+        if time_diff < os.environ.get('STALE_TIME', 60) and time_diff >= 0:
+          #Now prepend the last bit of shape from the partial_end segment that's already in Redis
+          #to the rest of the partial_start segment once it is returned from the segment_matcher
+          trace['trace'] = partial + trace['trace']
     else:
       return 400, 'No uuid in segment_match request!'
 
     #ask valhalla to give back OSMLR segments along this trace
-    result = self.server.segment_matcher.Match(json.dumps(trace))
+    result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
     segments = json.loads(result)
+    #print '###########Segment Matcher Response, can include partials'
+    #pprint.pprint(segments)
 
-    #if there is something
+    #if there are segments
     if len(segments['segments']):
       #if the last one is partial, store in Redis
       if segments['segments'][-1]['partial_end']:
-        self.server.cache.setnx(uuid, segments['segments'][-1])
+        #gets the begin index of the last partial
+        begin_index = segments['segments'][-1]['begin_shape_index']
+        #if the index is not at the beginning, then grab the index prior so that we have more than enough shape
+        if begin_index != 0:
+          begin_index -= 1
+        #in Redis, set the uuid as key and trace from the begin index to the end
+        thread_local.cache.set(uuid, pickle.dumps(trace['trace'][begin_index:]), ex=os.environ.get('PARTIAL_EXPIRY', 300))
       #if any others are partial, we do not need so remove them
       segments['segments'] = [ seg for seg in segments['segments'] if not seg['partial_start'] and not seg['partial_end'] ]
       segments['mode'] = "auto"
@@ -137,6 +153,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #******************************************************************#
     #QA CHECKS
     #prints segments array info to terminal in csv format if partial start and end are false
+    #print '###########Complete Segments Stored in Datastore'
     #pprint.pprint(segments)
     #******************************************************************#
 
@@ -187,6 +204,7 @@ if __name__ == '__main__':
     address = tuple(address)
     os.environ['REDIS_HOST']
     os.environ['DATASTORE_URL']
+
   except Exception as e:
     sys.stderr.write('Problem with config file: {0}\n'.format(e)) 
     sys.exit(1)
