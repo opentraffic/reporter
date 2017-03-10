@@ -55,7 +55,7 @@ To import probe data and create the json request file to be used as input to the
 
 #### Instead of using Docker
 
-NOTE:  This is taken care of by the docker container. The csv formatter script can be run locally on your mac and not inside the container as should the command to curl the requests to the service.
+NOTE:  This is taken care of by the docker container. The csv formatter script can be run from your local machine and not inside the container as should the command to curl the requests to the service.
 To run the Reporter service and send the created json requests via POST:
 start reporter service from the py directory:
 `PYTHONPATH=PYTHONPATH:../../valhalla/valhalla/.libs REDIS_HOST=localhost DATASTORE_URL=http://localhost:8003/store? ./py/reporter_service.py ../../conf/manila.json localhost:8002`
