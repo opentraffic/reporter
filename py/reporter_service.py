@@ -131,9 +131,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         thread_local.cache.set(uuid, pickle.dumps(trace['trace'][begin_index:]), ex=os.environ.get('PARTIAL_EXPIRY', 300))
       #if any others are partial, we do not need so remove them
       segments['segments'] = [ seg for seg in segments['segments'] if seg['length'] > 0 ]
-      for seg in segments['segments']:
-        seg['start_time'] = int(seg['start_time'] + .5)
-        seg['end_time'] = int(seg['end_time'] + .5)
       segments['mode'] = "auto"
       segments['provider'] = "GRAB" #os.enviorn['PROVIDER_ID']
       #segments['reporter_id'] = os.environ['REPORTER_ID']
