@@ -32,7 +32,7 @@ with open(sys.argv[1], 'r') as csvfile:
       trace['trace'].append(row)
     # End the prior vehicle
     else:
-      if len(trace['trace']):
+      if len(trace['trace']) > 1:
         print json.dumps(trace, separators=(',',':'))
         #print json.dumps({'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': [ [i['lon'], i['lat']] for i in trace ] }, 'properties':{'uuid':uuid}}, separators=(',',':')), ','
       trace['uuid'] = row[columns[1]]
