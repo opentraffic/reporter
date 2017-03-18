@@ -2,9 +2,7 @@
 
 '''
 If you're running this from this directory you can start the server with the following command:
-PYTHONPATH=PYTHONPATH:../../valhalla/valhalla/.libs REDIS_HOST=localhost DATASTORE_URL=http://localhost:8003/store? pdb py/reporter_service.py ../../conf/manila.json localhost:8002
-
-***NOTE:: Remove pdb from command and pdb.trace() below if you don't want to debug
+PYTHONPATH=PYTHONPATH:../../valhalla/valhalla/.libs REDIS_HOST=localhost DATASTORE_URL=http://localhost:8003/store? py/reporter_service.py ../../conf/manila.json localhost:8002
 
 sample url looks like this:
 http://localhost:8002/segment_match?json=
@@ -22,8 +20,6 @@ from SocketServer import ThreadingMixIn
 from cgi import urlparse
 import requests
 import valhalla
-#import pdb
-import pprint
 import pickle
 
 actions = set(['report'])
@@ -37,7 +33,10 @@ class ThreadPoolMixIn(ThreadingMixIn):
 
   def serve_forever(self):
     # set up the threadpool
-    pool_size = int(os.environ.get('THREAD_POOL_MULTIPLIER', 1)) * multiprocessing.cpu_count()
+    if 'THREAD_POOL_COUNT' in os.environ:
+      pool_size = int(os.environ.get('THREAD_POOL_COUNT'))
+    else:
+      pool_size = int(os.environ.get('THREAD_POOL_MULTIPLIER', 1)) * multiprocessing.cpu_count()
     self.requests = Queue(pool_size)
     for x in range(pool_size):
       t = threading.Thread(target = self.process_request_thread)
@@ -104,7 +103,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     #lets get the uuid from json the request
     uuid = trace.get('uuid')
-    #pdb.set_trace()
     if uuid is not None:
       #do we already know something about this vehicleId already? Let's check Redis
       partial = thread_local.cache.get(uuid)
@@ -122,22 +120,17 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #ask valhalla to give back OSMLR segments along this trace
     result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
     segments = json.loads(result)
-    #print '###########Segment Matcher Response, can include partials'
-    #pprint.pprint(segments)
 
     #if there are segments
     if len(segments['segments']):
-      #if the last one is partial, store in Redis
-      if segments['segments'][-1]['partial_end']:
+      #if the last one had the beginning of the ots but not the end we'll want to continue it
+      if segments['segments'][-1]['start_time'] >= 0 and segments['segments'][-1]['end_time'] < 0:
         #gets the begin index of the last partial
         begin_index = segments['segments'][-1]['begin_shape_index']
-        #if the index is not at the beginning, then grab the index prior so that we have more than enough shape
-        if begin_index != 0:
-          begin_index -= 1
         #in Redis, set the uuid as key and trace from the begin index to the end
         thread_local.cache.set(uuid, pickle.dumps(trace['trace'][begin_index:]), ex=os.environ.get('PARTIAL_EXPIRY', 300))
       #if any others are partial, we do not need so remove them
-      segments['segments'] = [ seg for seg in segments['segments'] if not seg['partial_start'] and not seg['partial_end'] ]
+      segments['segments'] = [ seg for seg in segments['segments'] if seg['length'] > 0 ]
       segments['mode'] = "auto"
       segments['provider'] = "GRAB" #os.enviorn['PROVIDER_ID']
       #segments['reporter_id'] = os.environ['REPORTER_ID']
@@ -149,13 +142,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
           sys.stderr.write(response.text)
           sys.stderr.flush()
           return 500, response.text
-
-    #******************************************************************#
-    #QA CHECKS
-    #prints segments array info to terminal in csv format if partial start and end are false
-    #print '###########Complete Segments Stored in Datastore'
-    #pprint.pprint(segments)
-    #******************************************************************#
 
     #hand it back
     return 200, 'Reported on %d segments' % len(segments['segments'])
