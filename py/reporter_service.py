@@ -128,16 +128,13 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #if there are segments
     if len(segments['segments']):
       #if the last one is partial, store in Redis
-      if segments['segments'][-1]['partial_end']:
+      if segments['segments'][-1]['length'] < 0:
         #gets the begin index of the last partial
         begin_index = segments['segments'][-1]['begin_shape_index']
-        #if the index is not at the beginning, then grab the index prior so that we have more than enough shape
-        if begin_index != 0:
-          begin_index -= 1
         #in Redis, set the uuid as key and trace from the begin index to the end
         thread_local.cache.set(uuid, pickle.dumps(trace['trace'][begin_index:]), ex=os.environ.get('PARTIAL_EXPIRY', 300))
       #if any others are partial, we do not need so remove them
-      segments['segments'] = [ seg for seg in segments['segments'] if not seg['partial_start'] and not seg['partial_end'] ]
+      segments['segments'] = [ seg for seg in segments['segments'] if seg['length'] > 0 ]
       segments['mode'] = "auto"
       segments['provider'] = "GRAB" #os.enviorn['PROVIDER_ID']
       #segments['reporter_id'] = os.environ['REPORTER_ID']
