@@ -22,7 +22,6 @@ from SocketServer import ThreadingMixIn
 from cgi import urlparse
 import requests
 import valhalla
-#import pdb
 import pprint
 import pickle
 
@@ -104,7 +103,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     #lets get the uuid from json the request
     uuid = trace.get('uuid')
-    #pdb.set_trace()
     if uuid is not None:
       #do we already know something about this vehicleId already? Let's check Redis
       partial = thread_local.cache.get(uuid)
@@ -127,14 +125,17 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     #if there are segments
     if len(segments['segments']):
-      #if the last one is partial, store in Redis
-      if segments['segments'][-1]['length'] < 0:
+      #if the last one had the beginning of the ots but not the end we'll want to continue it
+      if segments['segments'][-1]['start_time'] >= 0 and segments['segments'][-1]['end_time'] < 0:
         #gets the begin index of the last partial
         begin_index = segments['segments'][-1]['begin_shape_index']
         #in Redis, set the uuid as key and trace from the begin index to the end
         thread_local.cache.set(uuid, pickle.dumps(trace['trace'][begin_index:]), ex=os.environ.get('PARTIAL_EXPIRY', 300))
       #if any others are partial, we do not need so remove them
-      segments['segments'] = [ seg for seg in segments['segments'] if seg['length'] > 0 ]
+      segments['segments'] = [ seg for seg in segments['segments'] if seg['start_time'] >= 0 and seg['end_time'] >= 0 ]
+      for seg in segments['segments']:
+        seg['start_time'] = int(seg['start_time'] + .5)
+        seg['end_time'] = int(seg['end_time'] + .5)
       segments['mode'] = "auto"
       segments['provider'] = "GRAB" #os.enviorn['PROVIDER_ID']
       #segments['reporter_id'] = os.environ['REPORTER_ID']
