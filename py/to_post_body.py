@@ -17,6 +17,8 @@ args.file = args.file[0]
 
 #output a single body
 def emit(trace):
+  if len(trace['trace']) < 2:
+    return
   if args.output_format == 'json':
     sys.stdout.write(json.dumps(trace, separators=(',', ':')) + os.linesep)
   else:
