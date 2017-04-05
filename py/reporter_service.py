@@ -132,8 +132,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       #if any others are partial, we do not need so remove them
       segments['segments'] = [ seg for seg in segments['segments'] if seg['length'] > 0 ]
       segments['mode'] = "auto"
-      if 'PROVIDER' in os.environ:
-        segments['provider'] = os.environ['PROVIDER']
+      segments['provider'] = os.environ.get('PROVIDER', '')
       #segments['reporter_id'] = os.environ['REPORTER_ID']
 
       #Now we will send the whole segments on to the datastore
