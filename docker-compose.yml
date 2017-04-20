@@ -21,8 +21,8 @@ services:
       - DATASTORE_URL=http://172.17.0.1:8003/store?
       - STALE_TIME=60
       - PARTIAL_EXPIRY=300
-      - MAX_TRACE_SIZE=120
-      - MAX_TIME_DIFF=120
+      - MIN_TRACE_DIST=1000
+      - MIN_ELAPSED_TIME=120
 
 networks:
   opentraffic:

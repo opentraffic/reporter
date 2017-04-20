@@ -21,11 +21,33 @@ from cgi import urlparse
 import requests
 import valhalla
 import pickle
+import math
 
 actions = set(['report'])
 
-# this is where thread local storage lives
+#get the distance between a lat,lon using equirectangular approximation
+rad_per_deg = math.pi / 180
+meters_per_deg = 20037581.187 / 180
+def difference(a, b):
+  x = (a['lon'] - b['lon']) * meters_per_deg * math.cos(.5 * (a['lat'] + b['lat']) * rad_per_deg)
+  y = (a['lat'] - b['lat']) * meters_per_deg
+  return x * x + y * y, a['time'] - b['time']
+
+#get the length of a series of points
+def sum_difference(p):
+  l = 0
+  e = 0
+  for i in range(1, len(p)):
+    d, t = difference(p[i], p[i - 1])
+    l += d
+    e += t
+  return l, e
+
+#this is where thread local storage lives
 thread_local = threading.local()
+
+#the cut off for when we need to report a set of points
+square_distance_cutoff = os.environ.get('MIN_TRACE_DIST', 300) * os.environ.get('MIN_TRACE_DIST', 1000)
 
 #use a thread pool instead of just frittering off new threads for every request
 class ThreadPoolMixIn(ThreadingMixIn):
@@ -99,11 +121,10 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
   #report some segments to the datastore
   def report(self, trace, partial):
     uuid = trace['uuid']
-    trace_size = len(trace['trace'])
-    time_diff = trace['trace'][-1]['time'] - trace['trace'][0]['time']
     #we buffer this point for now until we get more data
-    if not partial and (trace_size < os.environ.get('MAX_TRACE_SIZE', 120) or time_diff < os.environ.get('MAX_TIME_DIFF', 120)):
-      thread_local.cache.set(uuid, pickle.dumps(trace['trace']), ex=os.environ.get('PARTIAL_EXPIRY', 300))
+    if not partial and trace['sq_distance'] < square_distance_cutoff \
+                   and trace['elapsed_time'] < os.environ.get('MIN_ELAPSED_TIME', 60):
+      thread_local.cache.set(uuid, pickle.dumps(trace), ex=os.environ.get('PARTIAL_EXPIRY', 300))
       return None
 
     #ask valhalla to give back OSMLR segments along this trace
@@ -119,11 +140,17 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       thread_local.cache.delete(uuid)
     #there is some partially traversed segment we want to use again
     elif len(segments['segments']) and segments['segments'][-1]['start_time'] >= 0 and segments['segments'][-1]['end_time'] < 0:
-      begin_index = segments['segments'][-1]['begin_shape_index']
-      thread_local.cache.set(uuid, pickle.dumps(trace['trace'][begin_index:]), ex=os.environ.get('PARTIAL_EXPIRY', 300))
+      trace['trace'] = trace['trace'][segments['segments'][-1]['begin_shape_index']:]
+      sq_distance, elapsed_time = sum_difference(trace['trace'])
+      trace['sq_distance'] = sq_distance
+      trace['elapsed_time'] = elapsed_time
+      thread_local.cache.set(uuid, pickle.dumps(trace), ex=os.environ.get('PARTIAL_EXPIRY', 300))
     #either no segments or the last one was complete either way keep the last point for the next try
     else:
-      thread_local.cache.set(uuid, pickle.dumps(trace['trace'][-1:]), ex=os.environ.get('PARTIAL_EXPIRY', 300))
+      trace['trace'] = trace['trace'][-1:]
+      trace['sq_distance'] = 0
+      trace['elapsed_time'] = 0
+      thread_local.cache.set(uuid, pickle.dumps(trace), ex=os.environ.get('PARTIAL_EXPIRY', 300))
 
     #clean out the unuseful partial segments
     segments['segments'] = [ seg for seg in segments['segments'] if seg['length'] > 0 ]
@@ -149,19 +176,30 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     if uuid is None:
       return 400, 'uuid is required'
 
+    #one or more points is required
+    try:
+      sq_distance, elapsed_time = sum_difference(trace['trace'])
+      trace['sq_distance'] = sq_distance
+      trace['elapsed_time'] = elapsed_time
+    except Exception as e:
+      return 400, 'trace must be a non zero length array of object eacho of which must have at least lat, lon and time'
+
     #do we already have some previous trace to prepend for this uuid
     partial_segments = None
+    #TODO: aquire lock on uuid through redis, otherwise race conditions will ensue
     partial = thread_local.cache.get(uuid)
     if partial:
       partial = pickle.loads(partial)
-      time_diff = trace['trace'][0]['time'] - partial[-1]['time']
-      #check to make sure time is not stale and not in future
-      if time_diff < os.environ.get('STALE_TIME', 60) and time_diff >= 0:
-        trace['trace'] = partial + trace['trace']
+      distance, time = difference(trace['trace'][0], partial['trace'][-1])
+      #we can append to the previous info if its not stale or in the past
+      if time < os.environ.get('STALE_TIME', 60) and time >= 0:
+        trace['sq_distance'] += partial['sq_distance'] + distance
+        trace['elapsed_time'] += partial['elapsed_time'] + time
+        trace['trace'] = partial['trace'] + trace['trace']
       #use the partial before we drop it on the floor
-      elif len(partial) > 1:
+      elif len(partial['trace']) > 1:
         try:
-          partial_segments = self.report({'trace': partial, 'uuid': uuid}, True)
+          partial_segments = self.report(partial, True)
         except Exception as e:
           return 500, str(e)
 
