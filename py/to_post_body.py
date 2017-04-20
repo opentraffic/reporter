@@ -17,8 +17,6 @@ args.file = args.file[0]
 
 #output a single body
 def emit(trace):
-  if len(trace['trace']) < 2:
-    return
   if args.output_format == 'json':
     sys.stdout.write(json.dumps(trace, separators=(',', ':')) + os.linesep)
   else:
@@ -43,7 +41,7 @@ for line in handle:
       uuids[uuid] = {'uuid': uuid, 'trace':[]}
     trace = uuids[uuid]['trace']
     #if its been too much time or we hit the batch size
-    if (len(trace) and reading['time'] - trace[-1]['time'] > args.time_between) or len(trace) > args.batch_size:
+    if (len(trace) and reading['time'] - trace[-1]['time'] > args.time_between) or len(trace) >= args.batch_size:
       emit(uuids[uuid])
       uuids[uuid] = {'uuid': uuid, 'trace':[reading]}
     #append
@@ -56,7 +54,8 @@ for line in handle:
     uuids = {}
 #flush anything left
 for k,v in uuids.iteritems():
-  emit(v)
+  if len(v['trace']):
+    emit(v)
 #done
 if args.file != '-':
   handle.close()

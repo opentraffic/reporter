@@ -96,55 +96,88 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         return json.loads(params['json'][0])
     raise Exception('No json provided')
 
-  #parse the request because we dont get this for free!
-  def handle_request(self, post):
-    #get the reporter data
-    trace = self.parse_trace(post)
-
-    #lets get the uuid from json the request
-    uuid = trace.get('uuid')
-    if uuid is not None:
-      #do we already know something about this vehicleId already? Let's check Redis
-      partial = thread_local.cache.get(uuid)
-      if partial:
-        partial = pickle.loads(partial)
-        time_diff = trace['trace'][0]['time'] - partial[-1]['time']
-        #check to make sure time is not stale and not in future
-        if time_diff < os.environ.get('STALE_TIME', 60) and time_diff >= 0:
-          #Now prepend the last bit of shape from the partial_end segment that's already in Redis
-          #to the rest of the partial_start segment once it is returned from the segment_matcher
-          trace['trace'] = partial + trace['trace']
-    else:
-      return 400, 'No uuid in segment_match request!'
+  #report some segments to the datastore
+  def report(self, trace, partial):
+    uuid = trace['uuid']
+    trace_size = len(trace['trace'])
+    time_diff = trace['trace'][-1]['time'] - trace['trace'][0]['time']
+    #we buffer this point for now until we get more data
+    if not partial and (trace_size < os.environ.get('MAX_TRACE_SIZE', 120) or time_diff < os.environ.get('MAX_TIME_DIFF', 120)):
+      thread_local.cache.set(uuid, pickle.dumps(trace['trace']), ex=os.environ.get('PARTIAL_EXPIRY', 300))
+      return None
 
     #ask valhalla to give back OSMLR segments along this trace
     result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
     segments = json.loads(result)
 
-    #if there are segments
+    #TODO: there are a couple of problems below:
+    #if a probe just sits in the same place and continues getting a partial we'll do matching every time
+    #if a probe drops off before hitting the threshhold we will expire that data without ever matching it
+
+    #partials we dont keep around they are done from here
+    if partial:
+      thread_local.cache.delete(uuid)
+    #there is some partially traversed segment we want to use again
+    elif len(segments['segments']) and segments['segments'][-1]['start_time'] >= 0 and segments['segments'][-1]['end_time'] < 0:
+      begin_index = segments['segments'][-1]['begin_shape_index']
+      thread_local.cache.set(uuid, pickle.dumps(trace['trace'][begin_index:]), ex=os.environ.get('PARTIAL_EXPIRY', 300))
+    #either no segments or the last one was complete either way keep the last point for the next try
+    else:
+      thread_local.cache.set(uuid, pickle.dumps(trace['trace'][-1:]), ex=os.environ.get('PARTIAL_EXPIRY', 300))
+
+    #clean out the unuseful partial segments
+    segments['segments'] = [ seg for seg in segments['segments'] if seg['length'] > 0 ]
+    segments['mode'] = 'auto'
+    segments['provider'] = os.environ.get('PROVIDER', '')
+
+    #Now we will send the whole segments on to the datastore
     if len(segments['segments']):
-      #if the last one had the beginning of the ots but not the end we'll want to continue it
-      if segments['segments'][-1]['start_time'] >= 0 and segments['segments'][-1]['end_time'] < 0:
-        #gets the begin index of the last partial
-        begin_index = segments['segments'][-1]['begin_shape_index']
-        #in Redis, set the uuid as key and trace from the begin index to the end
-        thread_local.cache.set(uuid, pickle.dumps(trace['trace'][begin_index:]), ex=os.environ.get('PARTIAL_EXPIRY', 300))
-      #if any others are partial, we do not need so remove them
-      segments['segments'] = [ seg for seg in segments['segments'] if seg['length'] > 0 ]
-      segments['mode'] = "auto"
-      segments['provider'] = os.environ.get('PROVIDER', '')
-      #segments['reporter_id'] = os.environ['REPORTER_ID']
+      response = requests.post(os.environ['DATASTORE_URL'], json.dumps(segments))
+      if response.status_code != 200:
+        raise Exception(response.text)
+    
+    #return the non partials
+    return segments
 
-      #Now we will send the whole segments on to the datastore
-      if len(segments['segments']):
-        response = requests.post(os.environ['DATASTORE_URL'], json.dumps(segments))
-        if response.status_code != 200:
-          sys.stderr.write(response.text)
-          sys.stderr.flush()
-          return 500, response.text
+  #parse the request because we dont get this for free!
+  def handle_request(self, post):
+    #get the reporter data
+    trace = self.parse_trace(post)
 
-    #hand it back
-    return 200, 'Reported on %d segments' % len(segments['segments'])
+    #uuid is required
+    uuid = trace.get('uuid')
+    if uuid is None:
+      return 400, 'uuid is required'
+
+    #do we already have some previous trace to prepend for this uuid
+    partial_segments = None
+    partial = thread_local.cache.get(uuid)
+    if partial:
+      partial = pickle.loads(partial)
+      time_diff = trace['trace'][0]['time'] - partial[-1]['time']
+      #check to make sure time is not stale and not in future
+      if time_diff < os.environ.get('STALE_TIME', 60) and time_diff >= 0:
+        trace['trace'] = partial + trace['trace']
+      #use the partial before we drop it on the floor
+      elif len(partial) > 1:
+        try:
+          partial_segments = self.report({'trace': partial, 'uuid': uuid}, True)
+        except Exception as e:
+          return 500, str(e)
+
+    #possibly report on what we have
+    try:
+      segments = self.report(trace, False)
+    except Exception as e:
+      return 500, str(e)
+
+    #we just cached it for now
+    reported = len(partial_segments['segments']) if partial_segments is not None else 0 \
+             + len(segments['segments']) if segments is not None else 0
+    if segments is None and reported == 0:
+      return 200, '%s has accumulated %d points' % (uuid, len(trace['trace']))
+    #we did find some matches
+    return 200, '%s reported on %d segments and accumulated %d points' % (uuid, reported, len(trace['trace']))
 
   #send an answer
   def answer(self, code, body):
