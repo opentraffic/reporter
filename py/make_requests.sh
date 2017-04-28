@@ -46,7 +46,7 @@ for file in ${files}; do
   #download in the foreground
   echo "Retrieving ${file} from s3" && aws s3 cp ${s3_dir}${file} . &> /dev/null
   #make requests with just this file
-  zcat ${file} | sort | ./to_post_body.py --time-between 0 --batch-size 1 - | parallel --no-notice -j ${par} wget ${url} -O - -q --post-data '{}'\; echo ""
+  zcat ${file} | sort | ./to_post_body.py - | parallel --no-notice -j ${par} wget ${url} -O - -q --post-data '{}'\; echo ""
   #done with this
   echo "Finished POST'ing ${file}" && rm -f ${file}
 done
