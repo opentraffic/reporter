@@ -47,7 +47,7 @@ def sum_difference(p):
 thread_local = threading.local()
 
 #the cut off for when we need to report a set of points
-square_distance_cutoff = os.environ.get('MIN_TRACE_DIST', 300) * os.environ.get('MIN_TRACE_DIST', 1000)
+square_distance_cutoff = int(os.environ.get('MIN_TRACE_DIST', 300)) * int(os.environ.get('MIN_TRACE_DIST', 1000))
 
 #use a thread pool instead of just frittering off new threads for every request
 class ThreadPoolMixIn(ThreadingMixIn):
