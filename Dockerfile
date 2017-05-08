@@ -4,7 +4,7 @@ MAINTAINER Grant Heffernan <grant@mapzen.com>
 # env
 ENV DEBIAN_FRONTEND noninteractive
 
-ENV VALHALLA_VERSION "2.1.6"
+ENV VALHALLA_VERSION "2.1.9"
 
 ENV MATCHER_DATA_DIR ${MATCHER_DATA_DIR:-"/data/valhalla"}
 ENV MATCHER_CONF_FILE ${MATCHER_CONF_FILE:-"/etc/valhalla.json"}
@@ -15,7 +15,6 @@ ENV MATCHER_LISTEN_PORT ${MATCHER_LISTEN_PORT:-"8002"}
 # install dependencies
 RUN apt-get update && apt-get install -y \
       python \
-      python-redis \
       python-requests \
       software-properties-common
 
