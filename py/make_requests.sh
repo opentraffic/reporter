@@ -9,30 +9,25 @@ fi
 set -e
 
 function usage {
-  echo -e "Usage:\n-s s3 bucket url\n-f regex to use with grep to get interesting files\n-u reporter url\n-j concurrency for posting requests\n" 1>&2
-  echo "Example: AWS_DEFAULT_PROFILE=big_data $0 -s s3://heaps_of_data/2016_11/ -f 2016_11_01.*gz -u http://opentraffic.io/report? -j 16" 1>&2
+  echo -e "Usage:\n-s s3 bucket url\n-f regex to use with grep to get interesting files\n" 1>&2
+  echo "Example: AWS_DEFAULT_PROFILE=opentraffic $0 -s s3://heaps_of_data/2016_11/ -f 2016_11_01.*gz" 1>&2
   echo "Note: bucket listing is not recursive" 1>&2
   echo "Note: data is pipe delimited: date|id|x|x|x|x|x|x|x|lat|lon|x|x with date format: %Y-%m-%d %H:%M:%S" 1>&2
   exit 1
 }
 
-par=$(nproc)
-while getopts ":s:f:u:j:b" opt; do
+while getopts ":s:f:" opt; do
   case $opt in
     s) s3_dir=$(echo ${OPTARG} | sed -e 's@/\?$@/@g')
     ;;
     f) file_re="${OPTARG}"
-    ;;
-    u) url="${OPTARG}"
-    ;;
-    j) par="${OPTARG}"
     ;;
     \?) echo "Invalid option -${OPTARG}" 1>&2 && usage
     ;;
   esac
 done
 
-if [[ -z ${s3_dir} ]] || [[ -z ${file_re} ]] || [[ -z ${url} ]]; then
+if [[ -z ${s3_dir} ]] || [[ -z ${file_re} ]]; then
   echo "Missing required option" 1>&2 && usage
 fi
 
@@ -45,8 +40,8 @@ echo "Processing $(echo ${files} | tr ' ' '\n' | wc -l) files"
 for file in ${files}; do
   #download in the foreground
   echo "Retrieving ${file} from s3" && aws s3 cp ${s3_dir}${file} . &> /dev/null
-  #make requests with just this file
-  zcat ${file} | sort | ./to_post_body.py - | parallel --no-notice -j ${par} wget ${url} -O - -q --post-data '{}'\; echo ""
+  #send to kafka producer
+  zcat ${file} | ./to_kafka_producer.py -
   #done with this
   echo "Finished POST'ing ${file}" && rm -f ${file}
 done
