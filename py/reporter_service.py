@@ -24,24 +24,6 @@ import math
 
 actions = set(['report'])
 
-#get the distance between a lat,lon using equirectangular approximation
-rad_per_deg = math.pi / 180
-meters_per_deg = 20037581.187 / 180
-def difference(a, b):
-  x = (a['lon'] - b['lon']) * meters_per_deg * math.cos(.5 * (a['lat'] + b['lat']) * rad_per_deg)
-  y = (a['lat'] - b['lat']) * meters_per_deg
-  return x * x + y * y, a['time'] - b['time']
-
-#get the length of a series of points
-def sum_difference(p):
-  l = 0
-  e = 0
-  for i in range(1, len(p)):
-    d, t = difference(p[i], p[i - 1])
-    l += d
-    e += t
-  return l, e
-  
 #this is where thread local storage lives
 thread_local = threading.local()
 
@@ -146,9 +128,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     #one or more points is required
     try:
-      sq_distance, elapsed_time = sum_difference(trace['trace'])
-      trace['sq_distance'] = sq_distance
-      trace['elapsed_time'] = elapsed_time
+      trace['trace'][1]
     except Exception as e:
       return 400, 'trace must be a non zero length array of object each of which must have at least lat, lon and time'
 
@@ -158,15 +138,12 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     except Exception as e:
       return 500, str(e)
 
-    #we just cached it for now
-    reported = len(segments['segments']) if segments is not None else 0
-    if segments is None and reported == 0:
-      return 200, '%s has accumulated %d points' % (uuid, len(trace['trace']))
-    #we did find some matches
-    return 200, '%s reported on %d segments and accumulated %d points' % (uuid, reported, len(trace['trace']))
+    return 200, segments
 
   #send an answer
   def answer(self, code, body):
+    if not isinstance(body, str):
+      str(body)
     response = json.dumps({'response': body })
     try:
       self.send_response(code)
