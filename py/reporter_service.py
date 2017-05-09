@@ -112,6 +112,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         return json.loads(params['json'][0])
     raise Exception('No json provided')
 
+
   #report some segments to the datastore
   def report(self, trace, partial):
     uuid = trace['uuid']
