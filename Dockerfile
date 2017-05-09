@@ -19,8 +19,7 @@ RUN apt-get update && apt-get install -y \
       python-requests \
       software-properties-common
 
-RUN apt-add-repository -y ppa:kevinkreiser/prime-server
-RUN apt-add-repository -y ppa:valhalla-routing/valhalla
+RUN apt-add-repository -y ppa:valhalla-core/valhalla
 RUN apt-get update && apt-get install -y \
       valhalla${VALHALLA_VERSION}-bin \
       python-valhalla${VALHALLA_VERSION}
