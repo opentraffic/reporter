@@ -1,13 +1,6 @@
 version: '2'
 
 services:
-  redis:
-    image: redis:3.2.6
-    networks:
-      - opentraffic
-    ports:
-      - "6379:6379"
-
   reporter:
     image: opentraffic/reporter:latest
     networks:
@@ -18,8 +11,6 @@ services:
       - ${DATAPATH}:/data/valhalla
     environment:
       - DATASTORE_URL=http://172.17.0.1:8003/store?
-      - MIN_TRACE_DIST=1000
-      - MIN_ELAPSED_TIME=120
 
 networks:
   opentraffic:
