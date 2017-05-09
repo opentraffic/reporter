@@ -9,13 +9,15 @@ import logging, time
 from kafka import KafkaProducer
 from kafka.common import KafkaError
  
+
+""" For debugging
 logger = logging.getLogger('kafka.client')
 logger.setLevel(logging.DEBUG)
 # create file handler which logs even debug messages
 fh = logging.FileHandler('push_data.log')
 fh.setLevel(logging.DEBUG)
 logger.addHandler(fh)
-
+"""
 producer = KafkaProducer(bootstrap_servers=['172.17.0.1:9092'],api_version=(0, 9))
 
 #parse a couple of options
