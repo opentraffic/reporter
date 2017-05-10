@@ -4,7 +4,8 @@ MAINTAINER Grant Heffernan <grant@mapzen.com>
 # env
 ENV DEBIAN_FRONTEND noninteractive
 
-ENV VALHALLA_VERSION "2.1.9"
+ENV VALHALLA_VERSION "2.2.0"
+ENV OSMLR_VERSION "1.0.0-rc.4"
 
 ENV MATCHER_DATA_DIR ${MATCHER_DATA_DIR:-"/data/valhalla"}
 ENV MATCHER_CONF_FILE ${MATCHER_CONF_FILE:-"/etc/valhalla.json"}
@@ -19,10 +20,13 @@ RUN apt-get update && apt-get install -y \
       python-requests \
       software-properties-common
 
+RUN apt-add-repository -y ppa:kevinkreiser/prime-server
 RUN apt-add-repository -y ppa:valhalla-core/valhalla
+RUN apt-add-repository -y ppa:valhalla-core/opentraffic
 RUN apt-get update && apt-get install -y \
       valhalla${VALHALLA_VERSION}-bin \
-      python-valhalla${VALHALLA_VERSION}
+      python-valhalla${VALHALLA_VERSION} \
+      osmlr${OSMLR_VERSION} osmium-tool
 
 # install code & config
 ADD ./py /reporter
