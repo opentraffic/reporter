@@ -139,7 +139,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     if partial:
       thread_local.cache.delete(uuid)
     #there is some partially traversed segment we want to use again
-    elif len(segments['segments']) and segments['segments'][-1]['start_time'] >= 0 and segments['segments'][-1]['end_time'] < 0:
+    elif len(segments['segments']) and segments['segments'][-1].get('segment_id') and segments['segments'][-1]['start_time'] >= 0 and segments['segments'][-1]['end_time'] < 0:
       trace['trace'] = trace['trace'][segments['segments'][-1]['begin_shape_index']:]
       sq_distance, elapsed_time = sum_difference(trace['trace'])
       trace['sq_distance'] = sq_distance
@@ -153,7 +153,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       thread_local.cache.set(uuid, pickle.dumps(trace), ex=os.environ.get('PARTIAL_EXPIRY', 300))
 
     #clean out the unuseful partial segments
-    segments['segments'] = [ seg for seg in segments['segments'] if seg['length'] > 0 ]
+    segments['segments'] = [ seg for seg in segments['segments'] if seg.get('segment_id') and seg['length'] > 0 ]
     segments['mode'] = 'auto'
     segments['provider'] = os.environ.get('PROVIDER', '')
 
