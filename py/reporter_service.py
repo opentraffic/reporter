@@ -143,8 +143,9 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
   #send an answer
   def answer(self, code, body):
     if not isinstance(body, str):
-      str(body)
-    response = json.dumps({'response': body })
+      response = json.dumps(body, separators=(',', ':'))
+    else:
+      response = json.dumps({'response': body}, separators=(',', ':'))
     try:
       self.send_response(code)
 

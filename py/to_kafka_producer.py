@@ -18,14 +18,21 @@ fh = logging.FileHandler('push_data.log')
 fh.setLevel(logging.DEBUG)
 logger.addHandler(fh)
 """
-producer = KafkaProducer(bootstrap_servers=['172.17.0.1:9092'],api_version=(0, 9))
 
 #parse a couple of options
 parser = argparse.ArgumentParser(description='Generate reporter post body', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('file', metavar='F', type=str, nargs=1, help='A file name to be read from, use - for stdin')
+parser.add_argument('brokers', type=str, help='A list of ip(s) and port(s) for your kafka brokers')
+parser.add_argument('topic', type=str, help='Create a topic for which the messages should be associated')
 
 args = parser.parse_args()
 args.file = args.file[0]
+args.brokers = args.file[1]
+args.topic = args.topic[2]
+
+#TODO: need to debug
+#producer = KafkaProducer(bootstrap_servers=[args.brokers.split(',')],api_version=(0, 9))
+producer = KafkaProducer(bootstrap_servers=[args.brokers],api_version=(0, 9))
 
 #output a single body
 #for each line from stdin
@@ -33,7 +40,7 @@ handle = open(args.file, 'r') if args.file != '-' else sys.stdin
 for line in handle:
   #try to work on the line as normal
   try:
-   producer.send("tracepts", line)
+   producer.send(args.topic, line)
   #we couldnt parse this line so lets output what we have so far
   except:
     pass
