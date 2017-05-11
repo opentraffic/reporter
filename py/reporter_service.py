@@ -96,14 +96,19 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
 
   #report some segments to the datastore
-  def report(self, trace, partial):
+  def report(self, trace):
     uuid = trace['uuid']
+
     #ask valhalla to give back OSMLR segments along this trace
     result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
     segments = json.loads(result)
 
+    #remember how much shape was used
+    #NOTE: no segments means your trace didnt hit any and we are purging it
+    shape_used  = len(trace['trace']) if len(segments['segments']) or segments['segments'][-1].get('segment_id') is None or segments['segments'][-1]['length'] < 0 else segments['segments'][-1] ['begin_shape_index']
+
     #clean out the unuseful partial segments
-    segments['segments'] = [ seg for seg in segments['segments'] if seg['length'] > 0 ]
+    segments['segments'] = [ seg for seg in segments['segments'] if seg.get('segment_id') and seg['length'] > 0 ]
     segments['mode'] = 'auto'
     segments['provider'] = os.environ.get('PROVIDER', '')
 
@@ -112,9 +117,9 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       response = requests.post(os.environ['DATASTORE_URL'], json.dumps(segments))
       if response.status_code != 200:
         raise Exception(response.text)
-    
-    #return the non partials
-    return segments
+
+    return shape_used
+
 
   #parse the request because we dont get this for free!
   def handle_request(self, post):
@@ -143,9 +148,9 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
   #send an answer
   def answer(self, code, body):
     if not isinstance(body, str):
-      response = json.dumps(body, separators=(',', ':'))
+      response = json.dumps({'shape_used': body}, separators=(',', ':'))
     else:
-      response = json.dumps({'response': body}, separators=(',', ':'))
+      response = json.dumps({'error': body}, separators=(',', ':'))
     try:
       self.send_response(code)
 
