@@ -114,8 +114,8 @@ After you've verified that flink is up and running you can run the accumulator o
 
 To run it in file mode do:
 
-    ${FLINK_HOME}/bin/flink run -c opentraffic.accumulator.Accumulator target/accumulator-1.0-SNAPSHOT.jar --file some_file
+    ${FLINK_HOME}/bin/flink run -c opentraffic.accumulator.Accumulator target/accumulator-1.0-SNAPSHOT.jar --file some_file --reporter http://localhost:8002/report?
 
 And to run it in kafka mode do:
 
-    ${FLINK_HOME}/bin/flink run -c opentraffic.accumulator.Accumulator target/accumulator-1.0-SNAPSHOT.jar --topic some_topic --bootstrap.servers kafka_brokers --zookeeper.connect zk_quorum --group.id some_id    
+    ${FLINK_HOME}/bin/flink run -c opentraffic.accumulator.Accumulator target/accumulator-1.0-SNAPSHOT.jar --topic some_topic --bootstrap.servers kafka_brokers --zookeeper.connect zk_quorum --group.id some_id --reporter http://localhost:8002/report?

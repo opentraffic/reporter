@@ -25,6 +25,8 @@ import org.apache.flink.streaming.runtime.operators.windowing.TimestampedValue;
 import org.apache.flink.util.Collector;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Accumulator {
   
@@ -32,29 +34,32 @@ public class Accumulator {
   private static final long REPORT_TIME_MIN = 60000;
   private static final long SESSION_GAP_MIN = 60000;
   private static final int REPORT_COUNT_MIN = 10;
+  private static String url;
   
   public static void main(String[] args) throws Exception {
     //some argument parsing
-    final ParameterTool parameterTool = ParameterTool.fromArgs(args);
+    final ParameterTool params = ParameterTool.fromArgs(args);
     
     //we need args
-    if(parameterTool.getNumberOfParameters() == 0) {
-      System.out.println("Usage: " + args[0] + " --file some_file");
-      System.out.println("Usage: " + args[0] + " --topic some_topic --bootstrap.servers kafka_brokers --zookeeper.connect zk_quorum --group.id some_id");
+    url = params.get("reporter");
+    if(params.getNumberOfParameters() == 0 || url == null) {
+      System.out.println("Usage: " + args[0] + " --file some_file --reporter http://some.reporter.url/report?");
+      System.out.println("Usage: " + args[0] + " --topic some_topic --bootstrap.servers kafka_brokers --zookeeper.connect zk_quorum --group.id some_id --reporter http://some.reporter.url/report?");
       return;
     }
     
     //check file based input
-    String file_path = parameterTool.get("file");
+    String file_path = params.get("file");
     if (file_path != null && file_path.isEmpty()) {
-      System.out.println("Usage: " + args[0] +  " --file some_file");
+      System.out.println("Usage: " + args[0] +  " --file some_file --reporter http://some.reporter.url/report?");
       return;
     }
     
     //check kafka based input
-    if (file_path == null && parameterTool.get("topic") != null && parameterTool.get("bootstrap.servers") != null &&
-        parameterTool.get("zookeeper.connect") != null && parameterTool.get("group.id") != null) {
-      System.out.println("Usage: " + args[0] + " --topic some_topic --bootstrap.servers kafka_brokers --zookeeper.connect zk_quorum --group.id some_id");
+    //NOTE: dont change how these args are parsed/named for kafka specific ones
+    if (file_path == null && (params.get("topic") == null || params.get("bootstrap.servers") == null ||
+        params.get("zookeeper.connect") == null || params.get("group.id") == null)) {
+      System.out.println("Usage: " + args[0] + " --topic some_topic --bootstrap.servers kafka_brokers --zookeeper.connect zk_quorum --group.id some_id --reporter http://some.reporter.url/report?");
       return;
     }
 
@@ -66,14 +71,14 @@ public class Accumulator {
     //create a checkpoint every 5 seconds
     env.enableCheckpointing(5000);
     //make parameters available in the web interface
-    env.getConfig().setGlobalJobParameters(parameterTool);
+    env.getConfig().setGlobalJobParameters(params);
     //using event time to measure progress
     env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
     
     //get the data from some configured location, use a custom deserialization schema to get GPSMessage objects in the window
     DataStreamSource<GPSMessage> unassigned_stream = file_path != null ? 
-      env.readFile(new GPSMessageSchema(), parameterTool.get("file")) : 
-      env.addSource(new FlinkKafkaConsumer010<GPSMessage>(parameterTool.get("topic"), new GPSMessageSchema(), parameterTool.getProperties()));
+      env.readFile(new GPSMessageSchema(), params.get("file")) : 
+      env.addSource(new FlinkKafkaConsumer010<GPSMessage>(params.get("topic"), new GPSMessageSchema(), params.getProperties()));
 
     //we need to tell flink about timestamps and watermarks to use eventtime driven streaming
     SingleOutputStreamOperator<GPSMessage> assigned_stream = unassigned_stream.assignTimestampsAndWatermarks(new GPSPunctuatedAssigner());
@@ -163,22 +168,20 @@ public class Accumulator {
   }
   
   //a custom response that we expect to get back from the reporter
-  @SuppressWarnings("unchecked")
   private static class ReporterResponse {
-    public ReporterResponse(int shape_used, String error) {
+    @JsonCreator
+    public ReporterResponse(@JsonProperty("shape_used") int shape_used, @JsonProperty("error") String error) {
       this.shape_used = shape_used;
       this.error = error;
     }
-    public int getShape_used() {
-      return shape_used;
-    }
-    public void setShape_used(int shape_used) {
+    @JsonCreator
+    public ReporterResponse(@JsonProperty("shape_used") int shape_used) {
       this.shape_used = shape_used;
+      this.error = null;
     }
-    public String getError() {
-      return error;
-    }
-    public void setError(String error) {
+    @JsonCreator
+    public ReporterResponse(@JsonProperty("error") String error) {
+      this.shape_used = -1;
       this.error = error;
     }
     private int shape_used;
@@ -202,17 +205,18 @@ public class Accumulator {
       //if its not enough to warrant use then skip it for now unless the purge processing time trigger is forcing it
       if(count < REPORT_COUNT_MIN)
         return;
-      //TODO: make this way less verbose
+      //finish up the json
       sb.replace(sb.length() - 1, sb.length() - 1, "]}");
       String post_body = sb.toString();
-      output.collect(post_body);      
-      //TODO: synchronously make the request to the see how much of it was used
+      //synchronously make the request to the see how much of it was used
       try {
-        ReporterResponse response = HttpClient.POST("", post_body);
-        count = response.shape_used;
+        ReporterResponse response = HttpClient.POST(url, post_body);
+        if(response.error != null && response.shape_used != -1)
+          count = response.shape_used;
       }
       catch (Exception e) {  }
-      //TODO: set count to be that number of points used
+      //let downstream know how much of the window we used
+      output.collect(Long.toString(count));
       //mark the portion of the window that was used so the evictor can delete it
       for (GPSMessage m : input) {
         //we are done marking
