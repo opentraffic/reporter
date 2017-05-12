@@ -97,8 +97,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
   #report some segments to the datastore
   def report(self, trace):
-    uuid = trace['uuid']
-
     #ask valhalla to give back OSMLR segments along this trace
     result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
     segments = json.loads(result)
