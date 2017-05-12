@@ -21,6 +21,7 @@ import requests
 import valhalla
 import pickle
 import math
+import pdb
 
 actions = set(['report'])
 
@@ -102,7 +103,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     segments = json.loads(result)
     #remember how much shape was used
     #NOTE: no segments means your trace didnt hit any and we are purging it
-    shape_used  = len(trace['trace']) if len(segments['segments']) or segments['segments'][-1].get('segment_id') is None or segments['segments'][-1]['length'] < 0 else segments['segments'][-1] ['begin_shape_index']
+    shape_used  = len(trace['trace']) if len(segments['segments']) == 0 or segments['segments'][-1].get('segment_id') is None or segments['segments'][-1]['length'] < 0 else segments['segments'][-1]['begin_shape_index']
 
     #clean out the unuseful partial segments
     segments['segments'] = [ seg for seg in segments['segments'] if seg.get('segment_id') and seg['length'] > 0 ]
@@ -120,6 +121,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
   #parse the request because we dont get this for free!
   def handle_request(self, post):
+    pdb.set_trace()
     #get the reporter data
     trace = self.parse_trace(post)
     #uuid is required
@@ -135,18 +137,19 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     #possibly report on what we have
     try:
-      segments = self.report(trace)
+      shape_used = self.report(trace)
     except Exception as e:
       return 500, str(e)
 
-    return 200, segments
+    return 200, shape_used
 
   #send an answer
   def answer(self, code, body):
-    if not isinstance(body, str):
-      response = json.dumps({'shape_used': body}, separators=(',', ':'))
-    else:
+    if isinstance(body, str):
       response = json.dumps({'error': body}, separators=(',', ':'))
+    else:
+      response = json.dumps({'shape_used': body}, separators=(',', ':'))
+
     try:
       self.send_response(code)
 
