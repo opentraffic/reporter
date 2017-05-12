@@ -24,6 +24,8 @@ import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer010;
 import org.apache.flink.streaming.runtime.operators.windowing.TimestampedValue;
 import org.apache.flink.util.Collector;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+
 public class Accumulator {
   
   //TODO: get these magic constants from arguments
@@ -117,7 +119,6 @@ public class Accumulator {
   //a custom trigger to work with our session based time window
   private static class GPSTrigger extends Trigger<GPSMessage, TimeWindow> {
     private static final long serialVersionUID = 1L;
-    private static final ValueStateDescriptor<Long> countDescriptor = new ValueStateDescriptor<>("count", Long.class);
     @Override
     public TriggerResult onElement(GPSMessage element, long timestamp, TimeWindow window, TriggerContext ctx) {
       //only fire if we its been enough elapsed event time (TODO: and we have a reasonable number of points)
@@ -161,6 +162,29 @@ public class Accumulator {
     }   
   }
   
+  //a custom response that we expect to get back from the reporter
+  @SuppressWarnings("unchecked")
+  private static class ReporterResponse {
+    public ReporterResponse(int shape_used, String error) {
+      this.shape_used = shape_used;
+      this.error = error;
+    }
+    public int getShape_used() {
+      return shape_used;
+    }
+    public void setShape_used(int shape_used) {
+      this.shape_used = shape_used;
+    }
+    public String getError() {
+      return error;
+    }
+    public void setError(String error) {
+      this.error = error;
+    }
+    private int shape_used;
+    private String error;
+  }  
+  
   //a custom window function to do work on the window each time we get triggered
   private static class GPSWindowFunction implements WindowFunction<GPSMessage, String, String, TimeWindow> {
     private static final long serialVersionUID = 1L;
@@ -168,7 +192,7 @@ public class Accumulator {
       //make the request
       long count = 0;
       StringBuilder sb = new StringBuilder();
-      sb.ensureCapacity(REPORT_COUNT_MIN * 128);
+      sb.ensureCapacity(REPORT_COUNT_MIN * GPSMessage.appxWireSize);
       sb.append("{\"uuid\":\""); sb.append(key); sb.append("\",\"trace\":[");
       for (GPSMessage m : input) {
         count++;
@@ -183,6 +207,11 @@ public class Accumulator {
       String post_body = sb.toString();
       output.collect(post_body);      
       //TODO: synchronously make the request to the see how much of it was used
+      try {
+        ReporterResponse response = HttpClient.POST("", post_body);
+        count = response.shape_used;
+      }
+      catch (Exception e) {  }
       //TODO: set count to be that number of points used
       //mark the portion of the window that was used so the evictor can delete it
       for (GPSMessage m : input) {

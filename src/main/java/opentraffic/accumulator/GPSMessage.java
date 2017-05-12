@@ -13,6 +13,7 @@ public class GPSMessage {
   private static final transient DateTimeFormatter timeFormatter =
     DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss").withLocale(Locale.US).withZoneUTC();
   private static final transient DecimalFormat floatFormatter = new DecimalFormat("###.######", new DecimalFormatSymbols(Locale.US));
+  public static final int appxWireSize = 128; //approximate number of chars that a single one of these takes up in json
   
   public String uuid;
   public float lat;
@@ -30,7 +31,7 @@ public class GPSMessage {
 
     //convert this info to the format we are going to use over the wire
     StringBuilder sb = new StringBuilder();
-    sb.ensureCapacity(128);
+    sb.ensureCapacity(appxWireSize);
     sb.append("{\"lat\":");
     sb.append(floatFormatter.format(lat)).append(",\"lon\":");
     sb.append(floatFormatter.format(lon)).append(",\"time\":");
