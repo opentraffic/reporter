@@ -37,20 +37,13 @@ docker run \
   --link datastore-postgres:postgres \
   opentraffic/datastore:latest
 
-echo "Starting the redis container..."
-docker run \
-  -d \
-  --name reporter-redis \
-  redis:3.2.6
 
 echo "Starting the reporter container..."
 docker run \
   -d \
   -p ${reporter_port}:${reporter_port} \
-  -e "REDIS_HOST=redis" \
   -e "DATASTORE_URL=http://datastore:${datastore_port}/store?" \
   --name reporter \
-  --link reporter-redis:redis \
   --link datastore:datastore \
   -v ${PWD}/${valhalla_data_dir}:/data/valhalla \
   reporter:latest
