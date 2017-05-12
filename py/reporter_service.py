@@ -97,12 +97,9 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
   #report some segments to the datastore
   def report(self, trace):
-    uuid = trace['uuid']
-
     #ask valhalla to give back OSMLR segments along this trace
     result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
     segments = json.loads(result)
-
     #remember how much shape was used
     #NOTE: no segments means your trace didnt hit any and we are purging it
     shape_used  = len(trace['trace']) if len(segments['segments']) or segments['segments'][-1].get('segment_id') is None or segments['segments'][-1]['length'] < 0 else segments['segments'][-1] ['begin_shape_index']
@@ -125,7 +122,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
   def handle_request(self, post):
     #get the reporter data
     trace = self.parse_trace(post)
-
     #uuid is required
     uuid = trace.get('uuid')
     if uuid is None:
@@ -139,7 +135,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     #possibly report on what we have
     try:
-      segments = self.report(trace, False)
+      segments = self.report(trace)
     except Exception as e:
       return 500, str(e)
 
