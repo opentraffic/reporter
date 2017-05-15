@@ -42,7 +42,8 @@ echo "Starting the flink job manager..."
 docker run \
   -d \
   -p ${flink_port}:${flink_port} \
-  --name flink_local \
+  --name jobmanager \
+  -v $(dirname ${flink_job}):/jobs \
   -t flink local
   
 sleep 3
@@ -51,11 +52,13 @@ sleep 3
 # for now we'll use file mode, later we'll switch to consume from kafka
 #
 echo "Running flink job from file..."
-docker run \
-  -t flink flink run \
-  -m ${flink_port} \
-  -c opentraffic.accumulator.Accumulator ${flink_job} \
-  --file valhalla_data/*.csv
+JOBMANAGER_CONTAINER=$(docker ps --filter name=jobmanager --format={{.ID}})
+docker exec -t \
+  -i "$JOBMANAGER_CONTAINER" \
+  flink run \
+  -c opentraffic.accumulator.Accumulator /jobs/$(basename ${flink_job}).jar \
+  --file valhalla_data/*.csv \
+  --reporter http://reporter:${reporter_port}/report?
 
 # test that we got data through to the echo server
 # TODO: this is lame do something more meaningful
