@@ -54,7 +54,7 @@ sleep 3
 echo "Running flink job from file..."
 sudo lxc-attach \
   -n "$(docker inspect --format "{{.Id}}" jobmanager)" -- \
-  bash \ 
+  bash -c \ 
     flink run \
       -c opentraffic.accumulator.Accumulator /jobs/$(basename ${flink_job}).jar \
       --file valhalla_data/*.csv \
