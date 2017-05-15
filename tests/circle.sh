@@ -52,13 +52,7 @@ sleep 3
 # for now we'll use file mode, later we'll switch to consume from kafka
 #
 echo "Running flink job from file..."
-sudo lxc-attach \
-  -n "$(docker inspect --format "{{.Id}}" jobmanager)" -- \
-  bash -c \ 
-    /opt/flink/bin/flink run \
-      -c opentraffic.accumulator.Accumulator /jobs/$(basename ${flink_job}).jar \
-      --file valhalla_data/*.csv \
-      --reporter http://reporter:${reporter_port}/report?
+sudo lxc-attach -n "$(docker inspect --format "{{.Id}}" jobmanager)" -- bash -c /opt/flink/bin/flink run -c opentraffic.accumulator.Accumulator /jobs/$(basename ${flink_job}).jar --file valhalla_data/*.csv --reporter http://reporter:${reporter_port}/report?
 
 # test that we got data through to the echo server
 # TODO: this is lame do something more meaningful
