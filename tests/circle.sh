@@ -55,7 +55,7 @@ echo "Running flink job from file..."
 sudo lxc-attach \
   -n "$(docker inspect --format "{{.Id}}" jobmanager)" -- \
   bash -c \ 
-    /opt/flink/bin/flink run \
+    flink run \
       -c opentraffic.accumulator.Accumulator /jobs/$(basename ${flink_job}).jar \
       --file valhalla_data/*.csv \
       --reporter http://reporter:${reporter_port}/report?
