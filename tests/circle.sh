@@ -51,7 +51,7 @@ sleep 3
 # for now we'll use file mode, later we'll switch to consume from kafka
 #
 echo "Running flink job from file..."
-docker run --rm -t flink flink run -m ${flink_port} -c -c opentraffic.accumulator.Accumulator ${flink_job} --file valhalla_data/*.csv
+docker run -t flink flink run -m ${flink_port} -c -c opentraffic.accumulator.Accumulator ${flink_job} --file valhalla_data/*.csv
 
 # test that we got data through to the echo server
 # TODO: this is lame do something more meaningful
