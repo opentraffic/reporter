@@ -53,8 +53,7 @@ sleep 3
 #
 echo "Running flink job from file..."
 JOBMANAGER_CONTAINER=$(docker ps --filter name=jobmanager --format={{.ID}})
-docker exec -t \
-  -i "$JOBMANAGER_CONTAINER" \
+sudo lxc-attach -n ${JOBMANAGER_CONTAINER} -- bash \ 
   flink run \
   -c opentraffic.accumulator.Accumulator /jobs/$(basename ${flink_job}).jar \
   --file valhalla_data/*.csv \
