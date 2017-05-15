@@ -40,6 +40,7 @@ docker run \
 #
 echo "Starting the flink job manager..."
 docker run \
+  -d \
   -p ${flink_port}:${flink_port} \
   --name flink_local \
   -t flink local
