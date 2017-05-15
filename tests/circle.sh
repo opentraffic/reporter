@@ -9,6 +9,7 @@ echo "Sourcing env from ./tests/env.sh..."
 # build flink job
 #
 export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
+mvn install 2>&1 1>/dev/null
 mvn clean package
 flink_job=target/accumulator-1.0-SNAPSHOT.jar
 
@@ -48,6 +49,7 @@ sleep 3
 # submit the flink job to the flink job manager
 # for now we'll use file mode, later we'll switch to consume from kafka
 #
+echo "Running flink job from file..."
 docker run --rm -t flink flink run -m ${flink_port} -c -c opentraffic.accumulator.Accumulator ${flink_job} --file valhalla_data/*.csv
 
 # test that we got data through to the echo server
