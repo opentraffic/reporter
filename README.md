@@ -7,38 +7,38 @@ Reporter takes in raw GPS probe data, matches it to [OSMLR segments](https://git
 ## Docker
 
 Set a DOCKER_HOST env var:
- DOCKER_HOST=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
+  export DOCKER_HOST=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
 
 Build/run the python [matcher service](https://github.com/opentraffic/reporter) via docker-compose.
 
 ## Kafka & Zookeeper
 
 If interested in running your own Kafka Producer and Consumer, please check out this GitHub repository on Docker Hub for instructions on how to do so:
-http://wurstmeister.github.io/kafka-docker/
+[kafka-docker](http://wurstmeister.github.io/kafka-docker/)
 
 OR
 
-Follow these steps:
+Once you have the necessary scripts from the [kafka-docker], you can follow these steps:
 
- Set a DOCKER_HOST env var:
- DOCKER_HOST=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
+  Set a DOCKER_HOST env var:
+  export DOCKER_HOST=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
 
- Terminal 1:
- docker-compose scale kafka=2
- docker-compse up
+  Terminal 1:
+  docker-compose scale kafka=2
+  docker-compse up
 
- Terminal 2: CREATE TOPIC AND DESCRIBE
- ./start-kafka-shell.sh ${DOCKER_HOST} ${DOCKER_HOST}:2181
- bash-4.3# $KAFKA_HOME/bin/kafka-topics.sh --create --topic topic --partitions 4 --zookeeper $ZK --replication-factor 2
- bash-4.3# $KAFKA_HOME/bin/kafka-topics.sh --describe --topic topic --zookeeper $ZK
+  Terminal 2: CREATE TOPIC AND DESCRIBE
+  ./start-kafka-shell.sh ${DOCKER_HOST} ${DOCKER_HOST}:2181
+  bash-4.3# $KAFKA_HOME/bin/kafka-topics.sh --create --topic topic --partitions 4 --zookeeper $ZK --replication-factor 2
+  bash-4.3# $KAFKA_HOME/bin/kafka-topics.sh --describe --topic topic --zookeeper $ZK
 
- Terminal 3: START PRODUCER(BROKERS)
- ./start-kafka-shell.sh ${DOCKER_HOST} ${DOCKER_HOST}:2181
- bash-4.3# $KAFKA_HOME/bin/kafka-console-producer.sh --broker-list ${DOCKER_HOST}:9092 --topic topic
+  Terminal 3: START PRODUCER(BROKERS)
+  ./start-kafka-shell.sh ${DOCKER_HOST} ${DOCKER_HOST}:2181
+  bash-4.3# $KAFKA_HOME/bin/kafka-console-producer.sh --broker-list ${DOCKER_HOST}:9092 --topic topic
 
- Terminal 4: START CONSUMER
-   ./start-kafka-shell.sh ${DOCKER_HOST} ${DOCKER_HOST}:2181
- bash-4.3# $KAFKA_HOME/bin/kafka-console-consumer.sh --zookeeper ${DOCKER_HOST}:2181 --topic topic --from-beginning
+  Terminal 4: START CONSUMER
+  ./start-kafka-shell.sh ${DOCKER_HOST} ${DOCKER_HOST}:2181
+  bash-4.3# $KAFKA_HOME/bin/kafka-console-consumer.sh --zookeeper ${DOCKER_HOST}:2181 --topic topic --from-beginning
 
 ### To run via docker composer
 * move your tarball to `/some/path/to/data/tiles.tar`
@@ -98,7 +98,7 @@ Build/run the python [matcher service](https://github.com/opentraffic/reporter) 
 * move your tarball to `/some/path/to/data/tiles.tar`
   * the path is of your choosing, the name of the tarball is currently required to be `tiles.tar`
 * `export DATAPATH=/data/valhalla/manila`
-* `DOCKER_HOST=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')`
+* `export DOCKER_HOST=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')`
 * `sudo docker build -t opentraffic/reporter .`
 * `sudo -E /usr/bin/docker-compose up`
 
