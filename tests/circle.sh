@@ -6,21 +6,11 @@ set -e
 echo "Sourcing env from ./tests/env.sh..."
 . ./tests/env.sh
 
-# install java
-#
-sudo apt-get install -y openjdk-8-jdk maven
-export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
-
 # build flink job
 #
+export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
 mvn clean package
 flink_job=target/accumulator-1.0-SNAPSHOT.jar
-
-# install echo server
-#
-sudo apt-add-repository -y ppa:valhalla-core/valhalla
-sudo apt-get update
-sudo apt-get install -y prime-server-bin
 
 # download test data
 #
