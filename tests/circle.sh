@@ -10,7 +10,7 @@ echo "Sourcing env from ./tests/env.sh..."
 #
 export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
 mvn install 2>&1 1>/dev/null
-mvn clean package
+mvn clean package -Pbuild-jar
 flink_job=${PWD}/target/accumulator-1.0-SNAPSHOT.jar
 
 # download test data
