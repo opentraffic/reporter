@@ -100,12 +100,8 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #ask valhalla to give back OSMLR segments along this trace
     result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
     segments = json.loads(result)
-    #remember how much shape was used
-    #NOTE: no segments means your trace didnt hit any and we are purging it
-    shape_used  = len(trace['trace']) if len(segments['segments']) == 0 or segments['segments'][-1].get('segment_id') is None or segments['segments'][-1]['length'] < 0 else segments['segments'][-1]['begin_shape_index']
 
     #clean out the unuseful partial segments
-    segments['segments'] = [ seg for seg in segments['segments'] if seg.get('segment_id') and seg['length'] > 0 ]
     segments['mode'] = 'auto'
     segments['provider'] = os.environ.get('PROVIDER', '')
 
@@ -115,7 +111,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       if response.status_code != 200:
         raise Exception(response.text)
 
-    return shape_used
+    return segments
 
 
   #parse the request because we dont get this for free!
@@ -135,18 +131,18 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     #possibly report on what we have
     try:
-      shape_used = self.report(trace)
+      segments = self.report(trace)
     except Exception as e:
       return 500, str(e)
 
-    return 200, shape_used
+    return 200, segments
 
   #send an answer
   def answer(self, code, body):
     if isinstance(body, str):
       response = json.dumps({'error': body}, separators=(',', ':'))
     else:
-      response = json.dumps({'shape_used': body}, separators=(',', ':'))
+      response = json.dumps(body, separators=(',', ':'))
 
     try:
       self.send_response(code)
