@@ -4,6 +4,8 @@ import java.util.Properties;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.processor.TopologyBuilder;
@@ -20,10 +22,13 @@ public class Accumulator {
     props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
     //hook stuff together
+    Point.Serder pointSerder = new Point.Serder();
     TopologyBuilder builder = new TopologyBuilder();
-    builder.addSource("Source", "Raw");
+    builder.addSource("Source", new StringDeserializer(), new StringDeserializer(), "Raw");
     builder.addProcessor("Formatter", new KeyedFormattingProcessor(args), "Source");
-    builder.addProcessor("Batcher", new BatchingProcessor(args), "Formatter");
+    builder.addSink("KeyedPointsSink", "Points", new StringSerializer(), pointSerder.serializer(), "Formatter");
+    builder.addSource("KeyedPointsSource", new StringDeserializer(), pointSerder.deserializer(), "Points");
+    builder.addProcessor("Batcher", new BatchingProcessor(args), "KeyedPointsSource");
     builder.addStateStore(BatchingProcessor.GetStore(), "Batcher");
     builder.addSink("Sink", "Segments", "Batcher");
 
@@ -32,7 +37,8 @@ public class Accumulator {
     streams.start();
 
     //kill it after 5 seconds (usually the stream application would be running forever)
-    Thread.sleep(5000L);  
+    Thread.sleep(5000L);
+    pointSerder.close();
     streams.close();
   }
 }
