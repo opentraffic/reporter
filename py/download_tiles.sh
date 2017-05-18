@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ -z "$*" ]; then
-	echo "Usage: $0 Bounding_Box URL Output_Directory Number_of_Processes <Tar_Output>"
+  echo "Usage: $0 Bounding_Box URL Output_Directory Number_of_Processes <Tar_Output>"
   echo "Example Usage: $0 -74.251961,40.512764,-73.755405,40.903125 https://thewebsite.com/dir /data/tiles 10 false"
   echo "NOTE:  Output directory will be deleted and recreated."
   exit 1
