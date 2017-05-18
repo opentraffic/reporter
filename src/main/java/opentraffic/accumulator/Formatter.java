@@ -66,7 +66,7 @@ public class Formatter {
   
   //TODO: protobuf/other formatter
 
-  public Pair<String, String> format(String message) throws ParseException, JsonParseException, JsonMappingException, IOException {
+  public Pair<String, Point> format(String message) throws ParseException, JsonParseException, JsonMappingException, IOException {
     switch(type) {
     case SV:
       return formatSV(message);
@@ -77,7 +77,7 @@ public class Formatter {
     }
   }
   
-  private Pair<String, String> formatSV(String message) throws ParseException {
+  private Pair<String, Point> formatSV(String message) throws ParseException {
     //parse it
     String[] parts = message.split(separator);
     //pull out each value
@@ -88,10 +88,10 @@ public class Formatter {
       Long.parseLong(parts[time_index]);
     int accuracy = (int)Math.ceil(floatFormatter.parse(parts[accuracy_index]).floatValue());
     //send it on
-    return format(parts[uuid_index], lat, lon, time, accuracy);
+    return new Pair<String, Point>(parts[uuid_index], new Point(lat, lon, accuracy, time));
   }
   
-  private Pair<String, String> formatJSON(String message) throws JsonParseException, JsonMappingException, IOException, ParseException {
+  private Pair<String, Point> formatJSON(String message) throws JsonParseException, JsonMappingException, IOException, ParseException {
     //parse it
     Map<String, Object> map = new HashMap<>();
     ObjectMapper mapper = new ObjectMapper();
@@ -104,15 +104,6 @@ public class Formatter {
       Long.parseLong(map.get(time_key).toString());
     int accuracy = (int)Math.ceil(floatFormatter.parse(map.get(accuracy_key).toString()).floatValue());
     //send it on
-    return format(map.get(uuid_key).toString(), lat, lon, time, accuracy);
-  }
-  
-  private Pair<String, String> format(String uuid, float lat, float lon, long time, int accuracy) {
-    String value = uuid;
-    value.concat(floatFormatter.format(lat)).concat(" ");
-    value.concat(floatFormatter.format(lon)).concat(" ");
-    value.concat(Long.toString(time)).concat(" ");
-    value.concat(Integer.toString(accuracy));
-    return new Pair<String, String>(uuid, value);
-  }  
+    return new Pair<String, Point>(map.get(uuid_key).toString(), new Point(lat, lon, accuracy, time));
+  } 
 }

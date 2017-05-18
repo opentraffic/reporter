@@ -13,6 +13,13 @@ public class Point {
   long time;
   public static final int SIZE = 4 + 4 + 4 + 8; //keep this up to date
   
+  public Point(float lat, float lon, int accuracy, long time) {
+    this.lat = lat;
+    this.lon = lon;
+    this.accuracy = accuracy;
+    this.time = time;
+  }
+  
   public static class Serder implements Serde<Point> {
     public static void put(Point p, ByteBuffer buffer) {
       buffer.putFloat(p.lat);
@@ -21,12 +28,7 @@ public class Point {
       buffer.putLong(p.time);
     }
     public static Point get(ByteBuffer buffer) {
-      Point p = new Point();
-      p.lat = buffer.getFloat();
-      p.lon = buffer.getFloat();
-      p.accuracy = buffer.getInt();
-      p.time = buffer.getLong();
-      return p;
+      return new Point(buffer.getFloat(), buffer.getFloat(), buffer.getInt(), buffer.getLong());
     }
     @Override
     public void configure(Map<String, ?> configs, boolean isKey) { }

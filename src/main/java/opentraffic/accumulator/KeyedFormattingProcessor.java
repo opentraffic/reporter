@@ -25,7 +25,7 @@ public class KeyedFormattingProcessor implements ProcessorSupplier<String, Strin
       @Override
       public void process(String key, String value) {
         try {
-          Pair<String, String> kv = formatter.format(value);
+          Pair<String, Point> kv = formatter.format(value);
           context.forward(kv.first, kv.second);
           context.commit();
         } catch (Exception e) {
