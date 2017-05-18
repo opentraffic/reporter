@@ -1,0 +1,64 @@
+#!/bin/bash
+
+if [ -z "$*" ]; then
+	echo "Usage: $0 Bounding_Box URL Output_Directory Number_of_Processes <Tar_Output>"
+  echo "Example Usage: $0 -74.251961,40.512764,-73.755405,40.903125 https://thewebsite.com/dir /data/tiles 10 false"
+  echo "NOTE:  Output directory will be deleted and recreated."
+  exit 1
+fi
+
+catch_exception() {
+  if [ $? != 0 ]; then
+    echo "[FAILURE] Detected non zero exit status while downloading tiles!"
+    exit 1
+  fi
+}
+
+BBOX=$1
+URL=$2
+OUTPUT_DIRECTORY=$3
+NUMBER_PROCESSES=$4
+TAR_OUTPUT=${5:-"false"}
+
+# these have to exist
+if [ -z "${BBOX}" ]; then
+  echo "[ERROR] Bounding box is not set. Exiting."
+  exit 1
+fi
+
+if [ -z "${URL}" ]; then
+  echo "[ERROR] URL is not set. Exiting."
+  exit 1
+fi
+
+if [ -z "${NUMBER_PROCESSES}" ]; then
+  echo "[ERROR] Number of processes is not set. Exiting."
+  exit 1
+fi
+
+if [ -z "${OUTPUT_DIRECTORY}" ]; then
+  echo "[ERROR] Output Directory is not set. Exiting."
+  exit 1
+fi
+
+rm -rf ${OUTPUT_DIRECTORY}
+mkdir -p ${OUTPUT_DIRECTORY}
+
+echo "[INFO] Building tile list."
+./get_tiles.py -b ${BBOX} -u $URL -d ${OUTPUT_DIRECTORY} > urls.txt
+catch_exception
+
+echo "[INFO] Downloading tiles."
+cat urls.txt | xargs -P $NUMBER_PROCESSES -n 4 curl -L &>output
+catch_exception
+
+if [ "${TAR_OUTPUT}" == "true" ]; then
+  echo "[INFO] Tar'ing tiles."
+  stamp=$(date +%Y_%m_%d-%H_%M_%S)
+  pushd ${OUTPUT_DIRECTORY}
+  find . | sort -n | tar -cf ${OUTPUT_DIRECTORY}/tiles_${stamp}.tar --no-recursion -T -
+  catch_exception
+fi
+
+echo "[SUCCESS] Download complete, exiting."
+
