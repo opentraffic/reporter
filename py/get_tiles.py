@@ -146,7 +146,7 @@ if __name__ == "__main__":
       # Create 2 bounding boxes
       range = maxx_ - minx_
       bounding_boxes.append(BoundingBox(bbox[0], bbox[1], maxx_, bbox[3]))
-      bounding_boxes.append(BoundingBox(maxx_, bbox[1], bbox[2] - range, bbox[3]))
+      bounding_boxes.append(BoundingBox(minx_, bbox[1], bbox[2] - range, bbox[3]))
     else:
       bounding_boxes.append(BoundingBox(bbox[0], bbox[1], bbox[2], bbox[3]))
 
