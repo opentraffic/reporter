@@ -45,17 +45,24 @@ rm -rf ${OUTPUT_DIRECTORY}
 mkdir -p ${OUTPUT_DIRECTORY}
 
 echo "[INFO] Building tile list."
-./get_tiles.py -b ${BBOX} -u $URL -d ${OUTPUT_DIRECTORY} > urls.txt
+./get_tiles.py -b ${BBOX} > urls.txt
 catch_exception
 
 echo "[INFO] Downloading tiles."
-cat urls.txt | xargs -P $NUMBER_PROCESSES -n 4 curl -L &>output
-catch_exception
+cat urls.txt | xargs -I replace -P ${NUMBER_PROCESSES} curl ${URL}/replace --create-dirs -o ${OUTPUT_DIRECTORY}/replace -f -L &>output
+
+if [ $? != 0 ]; then
+  echo ""
+  while read f; do
+    [ ! -f "${OUTPUT_DIRECTORY}/${f}" ] && echo "[WARN] ${URL}/${f} was not found!"
+  done < urls.txt
+  echo ""
+fi
 
 if [ "${TAR_OUTPUT}" == "true" ]; then
   echo "[INFO] Tar'ing tiles."
   stamp=$(date +%Y_%m_%d-%H_%M_%S)
-  pushd ${OUTPUT_DIRECTORY}
+  pushd ${OUTPUT_DIRECTORY} > /dev/null
   find . | sort -n | tar -cf ${OUTPUT_DIRECTORY}/tiles_${stamp}.tar --no-recursion -T -
   catch_exception
 fi
