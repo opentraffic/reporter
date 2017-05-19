@@ -1,6 +1,9 @@
 package opentraffic.accumulator;
 
 import java.nio.ByteBuffer;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.Locale;
 import java.util.Map;
 
 import org.apache.kafka.common.serialization.Deserializer;
@@ -21,6 +24,7 @@ public class Point {
   }
   
   public static class Serder implements Serde<Point> {
+    public static final DecimalFormat floatFormatter = new DecimalFormat("###.######", new DecimalFormatSymbols(Locale.US));
     public static void put(Point p, ByteBuffer buffer) {
       buffer.putFloat(p.lat);
       buffer.putFloat(p.lon);
@@ -29,6 +33,13 @@ public class Point {
     }
     public static Point get(ByteBuffer buffer) {
       return new Point(buffer.getFloat(), buffer.getFloat(), buffer.getInt(), buffer.getLong());
+    }
+    public static void put_json(Point p, StringBuilder sb) {
+      sb.append("{\"lat\":");
+      sb.append(floatFormatter.format(p.lat)).append(",\"lon\":");
+      sb.append(floatFormatter.format(p.lon)).append(",\"time\":");
+      sb.append(Long.toString(p.time)).append(",\"accuracy\":");
+      sb.append(Integer.toString(p.accuracy)).append("}");
     }
     @Override
     public void configure(Map<String, ?> configs, boolean isKey) { }

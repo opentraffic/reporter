@@ -64,7 +64,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
          batch.update(point);
         
         //see if it needs reported on
-        report(batch);        
+        report(key, batch);        
         
         //put it back or delete it
         this.kvStore.put(key, batch);
@@ -73,23 +73,26 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         context.commit();
       }
       
-      private void report(Batch batch) {
+      private void report(String key, Batch batch) {
         //if it meets the requirements lets act on it
         if(batch.traveled > REPORT_DIST && batch.points.size() > REPORT_COUNT && batch.elapsed > REPORT_TIME) {
-          //TODO: do some matching
-          //TODO: purge some of the batch
-          //TODO: pass something downstream via context.forward
+          String response = batch.report(key, url);
+          //for now we'll just forward the response on in case we want something downstream
+          context.forward(key, response);
         }
       }
       
       private void clean(String key) {
         Long time = System.currentTimeMillis();
-        //go through the stalest keys and if their timestamps are larger
-        //than SESSION_GAP report on them and delete them out of the store
-        while(time - time_to_key.get(0).first > SESSION_GAP) {
-          Batch batch = this.kvStore.get(time_to_key.get(0).second);
-          report(batch);
-          key_to_time_iter.remove(time_to_key.get(0).second);
+        //go through the keys in stalest first order keys
+        for(Pair<Long, String> time_key : time_to_key) {
+          //this key is too young to die
+          if(time - time_key.first < SESSION_GAP)
+            break;
+          //this fogey hasn't been producing much, off to the glue factory
+          Batch batch = this.kvStore.get(time_key.second);
+          report(time_key.second, batch);
+          key_to_time_iter.remove(time_key.second);
           time_to_key.remove(0);
         }
         
@@ -112,7 +115,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         KeyValueIterator<String, Batch> iter = kvStore.all();
         while(iter.hasNext()) {
           KeyValue<String, Batch> kv = iter.next();
-          report(kv.value);
+          report(kv.key, kv.value);
         }
         iter.close();
         //clean up

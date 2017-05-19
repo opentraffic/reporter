@@ -4,17 +4,13 @@ import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.ParseException;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class Formatter {
@@ -66,7 +62,7 @@ public class Formatter {
   
   //TODO: protobuf/other formatter
 
-  public Pair<String, Point> format(String message) throws ParseException, JsonParseException, JsonMappingException, IOException {
+  public Pair<String, Point> format(String message) throws ParseException, IOException {
     switch(type) {
     case SV:
       return formatSV(message);
@@ -91,19 +87,18 @@ public class Formatter {
     return new Pair<String, Point>(parts[uuid_index], new Point(lat, lon, accuracy, time));
   }
   
-  private Pair<String, Point> formatJSON(String message) throws JsonParseException, JsonMappingException, IOException, ParseException {
+  private Pair<String, Point> formatJSON(String message) throws IOException, ParseException {
     //parse it
-    Map<String, Object> map = new HashMap<>();
     ObjectMapper mapper = new ObjectMapper();
-    map = mapper.readValue(new String(), new TypeReference<HashMap<String, Object>>() {});
+    JsonNode node = mapper.readTree(message);
     //pull out each value
-    float lat = floatFormatter.parse(map.get(lat_key).toString()).floatValue();
-    float lon = floatFormatter.parse(map.get(lon_key).toString()).floatValue();
+    float lat = floatFormatter.parse(node.get(lat_key).asText()).floatValue();
+    float lon = floatFormatter.parse(node.get(lon_key).asText()).floatValue();
     long time = timeFormatter != null ? 
-      DateTime.parse(map.get(time_key).toString(), timeFormatter).getMillis() / 1000l : 
-      Long.parseLong(map.get(time_key).toString());
-    int accuracy = (int)Math.ceil(floatFormatter.parse(map.get(accuracy_key).toString()).floatValue());
+      DateTime.parse(node.get(time_key).asText(), timeFormatter).getMillis() / 1000l : 
+      node.get(time_key).asLong();
+    int accuracy = (int)Math.ceil(node.get(accuracy_key).asDouble());
     //send it on
-    return new Pair<String, Point>(map.get(uuid_key).toString(), new Point(lat, lon, accuracy, time));
+    return new Pair<String, Point>(node.get(uuid_key).asText(), new Point(lat, lon, accuracy, time));
   } 
 }

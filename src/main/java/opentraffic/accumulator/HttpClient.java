@@ -1,10 +1,10 @@
 package opentraffic.accumulator;
 
-import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
-import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
@@ -12,14 +12,11 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 public final class HttpClient {
-  public static <JSON> JSON POST(String url, String body) {
+  public static String POST(String url, String body) {
     //try to get the response and parse it
     CloseableHttpResponse response = null;
-    JSON j = null;
+    String v = null;
     try {
       //build the request
       CloseableHttpClient client = HttpClients.createDefault();
@@ -32,8 +29,7 @@ public final class HttpClient {
       HttpEntity response_entity = response.getEntity();
       if(response.getStatusLine().getStatusCode() == 200) {
         InputStream stream = response_entity.getContent();
-        ObjectMapper mapper = new ObjectMapper();
-        j = mapper.readValue(stream, new TypeReference<JSON>(){});
+        v = IOUtils.toString(stream, StandardCharsets.UTF_8);
       }
       //need to "consume" the response
       EntityUtils.consume(response_entity);
@@ -45,6 +41,6 @@ public final class HttpClient {
       if(response != null) 
         try { response.close(); } catch(Exception e){ }
     }
-    return j;
+    return v;
   }
 }
