@@ -1,4 +1,4 @@
-package opentraffic.reporter;
+package org.opentraffic.reporter;
 
 import org.apache.kafka.streams.processor.Processor;
 import org.apache.kafka.streams.processor.ProcessorContext;

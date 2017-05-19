@@ -1,4 +1,4 @@
-package opentraffic.reporter;
+package org.opentraffic.reporter;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;

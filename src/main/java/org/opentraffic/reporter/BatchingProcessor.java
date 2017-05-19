@@ -1,4 +1,4 @@
-package opentraffic.reporter;
+package org.opentraffic.reporter;
 
 import java.util.HashMap;
 import java.util.LinkedList;

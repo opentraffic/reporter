@@ -1,4 +1,4 @@
-package opentraffic.reporter;
+package org.opentraffic.reporter;
 
 import java.util.Properties;
 
@@ -11,15 +11,15 @@ import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.processor.TopologyBuilder;
 
 public class Reporter {
-  public static void main(String[] args) throws Exception {   
-    //some init
+  public static void main(String[] args) throws Exception {
     Properties props = new Properties();
+    //for now lets just start streaming from the beginning instead of coming in mid stream
+    props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+    //some init
     props.put(StreamsConfig.APPLICATION_ID_CONFIG, "reporter");
     props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
     props.put(StreamsConfig.KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
     props.put(StreamsConfig.VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
-    //for now lets just start streaming from the beginning instead of coming in mid stream
-    props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
     //hook stuff together
     Point.Serder pointSerder = new Point.Serder();
