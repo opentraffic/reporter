@@ -49,7 +49,7 @@ echo "[INFO] Building tile list."
 catch_exception
 
 echo "[INFO] Downloading tiles."
-cat files.txt | xargs -I replace -P ${NUMBER_PROCESSES} curl ${URL}/replace --create-dirs -o ${OUTPUT_DIRECTORY}/replace -f -L &>output
+cat files.txt | xargs -I replace -P ${NUMBER_PROCESSES} curl ${URL}/replace --create-dirs -o ${OUTPUT_DIRECTORY}/replace -f -L &>curl_output.txt
 
 if [ $? != 0 ]; then
   echo ""
