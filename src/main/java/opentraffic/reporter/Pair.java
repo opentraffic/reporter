@@ -1,4 +1,4 @@
-package opentraffic.accumulator;
+package opentraffic.reporter;
 
 public class Pair<T1, T2> {
   public final T1 first;

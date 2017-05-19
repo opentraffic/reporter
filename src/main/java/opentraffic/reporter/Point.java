@@ -1,4 +1,4 @@
-package opentraffic.accumulator;
+package opentraffic.reporter;
 
 import java.nio.ByteBuffer;
 import java.text.DecimalFormat;

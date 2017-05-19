@@ -3,11 +3,11 @@
 	<modelVersion>4.0.0</modelVersion>
 	
 	<groupId>opentraffic</groupId>
-	<artifactId>accumulator</artifactId>
+	<artifactId>reporter</artifactId>
 	<version>1.0-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
-	<name>Open Traffic Accumulator</name>
+	<name>Open Traffic Reporter</name>
 	<url>http://www.opentraffic.io</url>
 
 	<properties>
@@ -264,12 +264,12 @@
 									</excludes>
 								</filter>
 							</filters>
-							<!-- If you want to use ./bin/flink run <accumulator jar> uncomment the following lines.
+							<!-- If you want to use ./bin/flink run <reporter jar> uncomment the following lines.
 							This will add a Main-Class entry to the manifest file -->
 							<!--
 							<transformers>
 								<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-									<mainClass>opentraffic.accumulator.Accumulator</mainClass>
+									<mainClass>opentraffic.reporter.Reporter</mainClass>
 								</transformer>
 							</transformers>
 						    -->

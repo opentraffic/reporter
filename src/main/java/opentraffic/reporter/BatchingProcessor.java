@@ -1,4 +1,4 @@
-package opentraffic.accumulator;
+package opentraffic.reporter;
 
 import java.util.HashMap;
 import java.util.LinkedList;

@@ -1,4 +1,4 @@
-package opentraffic.accumulator;
+package opentraffic.reporter;
 
 import java.util.Properties;
 
@@ -10,7 +10,7 @@ import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.processor.TopologyBuilder;
 
-public class Accumulator {
+public class Reporter {
   public static void main(String[] args) throws Exception {   
     //some init
     Properties props = new Properties();

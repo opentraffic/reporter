@@ -1,4 +1,4 @@
-package opentraffic.accumulator;
+package opentraffic.reporter;
 
 import java.io.IOException;
 import java.text.DecimalFormat;
