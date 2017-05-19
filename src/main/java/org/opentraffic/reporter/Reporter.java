@@ -1,5 +1,7 @@
 package org.opentraffic.reporter;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -38,13 +40,23 @@ public class Reporter {
     builder.addProcessor("Batcher", new BatchingProcessor(args), "KeyedPointsSource");
     builder.addStateStore(BatchingProcessor.GetStore(), "Batcher");
     builder.addSink("Sink", "Segments", "Batcher");
-
-    //run it
+    
+    //start consuming
+    List<String> topics = new ArrayList<String>();
+    topics.add("Segments");
+    PrintConsumer consumer = new PrintConsumer(topics);
+    consumer.setDaemon(true);
+    consumer.start();
+    
+    //start the topology
     KafkaStreams streams = new KafkaStreams(builder, props);
     streams.start();
+    
+    //start producing
+    FileProducer producer = new FileProducer("Raw", new String[]{"input"});
+    producer.start();
+    producer.join();
 
-    //kill it after 5 seconds (usually the stream application would be running forever)
-    Thread.sleep(5000L);
     pointSerder.close();
     streams.close();
   }
