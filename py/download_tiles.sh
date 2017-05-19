@@ -45,17 +45,17 @@ rm -rf ${OUTPUT_DIRECTORY}
 mkdir -p ${OUTPUT_DIRECTORY}
 
 echo "[INFO] Building tile list."
-./get_tiles.py -b ${BBOX} > urls.txt
+./get_tiles.py -b ${BBOX} > files.txt
 catch_exception
 
 echo "[INFO] Downloading tiles."
-cat urls.txt | xargs -I replace -P ${NUMBER_PROCESSES} curl ${URL}/replace --create-dirs -o ${OUTPUT_DIRECTORY}/replace -f -L &>output
+cat files.txt | xargs -I replace -P ${NUMBER_PROCESSES} curl ${URL}/replace --create-dirs -o ${OUTPUT_DIRECTORY}/replace -f -L &>output
 
 if [ $? != 0 ]; then
   echo ""
   while read f; do
     [ ! -f "${OUTPUT_DIRECTORY}/${f}" ] && echo "[WARN] ${URL}/${f} was not found!"
-  done < urls.txt
+  done < files.txt
   echo ""
 fi
 
