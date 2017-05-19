@@ -45,12 +45,12 @@ public class Batch {
     Point last = points.get(points.size() - 1);
     elapsed += p.time - last.time;
     traveled += distance(p, last);
+    points.add(p);
   }
   
   public String report(String key, String url) {
-    //TODO: make a post body
+    //make a post body: uuid json + uuid + trace json + number of points * (single point json) + end of json array and object 
     StringBuilder sb = new StringBuilder();
-    //uuid json + uuid + trace json + number of points * (single point json) + end of json array and object
     sb.ensureCapacity(9 + key.length() + 11 + points.size() * (18 + 18 + 13 + 22 + 1) + 2);
     sb.append("{\"uuid\":\""); sb.append(key); sb.append("\",\"trace\":[");
     for(Point p : points) {
@@ -71,6 +71,7 @@ public class Batch {
       int trim_to = last == null || !last.has("segment_id") || last.get("length").asDouble() < 0 ?
         points.size() : last.get("begin_shape_index").asInt();
       points.subList(0,trim_to).clear();
+      //TODO: trim elapsed and traveled
     }
     catch(Exception e) {
       //TODO: how much do we trim?

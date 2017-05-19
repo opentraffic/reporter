@@ -24,9 +24,16 @@ public class Reporter {
     //hook stuff together
     Point.Serder pointSerder = new Point.Serder();
     TopologyBuilder builder = new TopologyBuilder();
+    
+    //takes raw input from tnc and reformat the tnc format data into
+    //a key of string type and a value of Point type
     builder.addSource("Source", new StringDeserializer(), new StringDeserializer(), "Raw");
     builder.addProcessor("Formatter", new KeyedFormattingProcessor(args), "Source");
     builder.addSink("KeyedPointsSink", "Points", new StringSerializer(), pointSerder.serializer(), "Formatter");
+    
+    //take batches of points for a given key (uuid) and when some threshold is met
+    //send that batch of points off to the reporter to be matched and update the
+    //batch according to how much of the batch was used in matching
     builder.addSource("KeyedPointsSource", new StringDeserializer(), pointSerder.deserializer(), "Points");
     builder.addProcessor("Batcher", new BatchingProcessor(args), "KeyedPointsSource");
     builder.addStateStore(BatchingProcessor.GetStore(), "Batcher");

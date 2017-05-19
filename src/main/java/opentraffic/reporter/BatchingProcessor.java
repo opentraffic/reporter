@@ -61,10 +61,10 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         if(batch == null)
           batch = new Batch(point);
         else
-         batch.update(point);
+          batch.update(point);
         
         //see if it needs reported on
-        report(key, batch);        
+        report(key, batch);
         
         //put it back or delete it
         this.kvStore.put(key, batch);
@@ -91,13 +91,16 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
             break;
           //this fogey hasn't been producing much, off to the glue factory
           Batch batch = this.kvStore.get(time_key.second);
-          report(time_key.second, batch);
+          //TODO: dont actually report here, instead insert into a queue that a thread can drain asynchronously
+          batch.report(time_key.second, url);
           key_to_time_iter.remove(time_key.second);
           time_to_key.remove(0);
         }
         
         //mark this key as recently having an update
         ListIterator<Pair<Long, String> > iter = key_to_time_iter.get(key);
+        if(iter == null)
+          return;
         time_to_key.remove(iter);
         time_to_key.add(new Pair<Long, String>(time, key));
         iter = time_to_key.listIterator(time_to_key.size() - 1); //O(1)

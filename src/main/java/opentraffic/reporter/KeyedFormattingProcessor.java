@@ -27,11 +27,11 @@ public class KeyedFormattingProcessor implements ProcessorSupplier<String, Strin
         try {
           Pair<String, Point> kv = formatter.format(value);
           context.forward(kv.first, kv.second);
-          context.commit();
         } catch (Exception e) {
           // swallow all bad input
           // TODO: log it
         }
+        context.commit();
       }
 
       @Override
