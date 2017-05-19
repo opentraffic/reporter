@@ -14,7 +14,7 @@ public class Reporter {
   public static void main(String[] args) throws Exception {   
     //some init
     Properties props = new Properties();
-    props.put(StreamsConfig.APPLICATION_ID_CONFIG, "accumulator");
+    props.put(StreamsConfig.APPLICATION_ID_CONFIG, "reporter");
     props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
     props.put(StreamsConfig.KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
     props.put(StreamsConfig.VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
