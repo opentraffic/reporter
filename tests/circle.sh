@@ -6,79 +6,62 @@ set -e
 echo "Sourcing env from ./tests/env.sh..."
 . ./tests/env.sh
 
+# build flink job
+#
+export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
+mvn install 2>&1 1>/dev/null
+mvn clean package -Pbuild-jar
+flink_job=${PWD}/target/accumulator-1.0-SNAPSHOT.jar
+
 # download test data
 #
 echo "Downloading test data..."
 aws s3 cp --recursive s3://circleci_reporter valhalla_data
 
-# start the containers
+# for now we have an echo server in place of the real data store
+# TODO: start the real data store container
 #
-echo "Starting the postgres container..."
-docker run \
-  -d \
-  --name datastore-postgres \
-  -e "POSTGRES_USER=${postgres_user}" \
-  -e "POSTGRES_PASSWORD=${postgres_password}" \
-  -e "POSTGRES_DB=${postgres_db}" \
-  postgres:9.6.1
+echo "Starting the datastore..."
+prime_echod tcp://*:${datastore_port} 1 &> datastore.log &
+echo_pid=$!
 
-echo "Sleeping to allow creation of database..."
-sleep 5
-
-echo "Starting the datastore container..."
-docker run \
-  -d \
-  -p ${datastore_port}:${datastore_port} \
-  -e "POSTGRES_USER=${postgres_user}" \
-  -e "POSTGRES_PASSWORD=${postgres_password}" \
-  -e "POSTGRES_DB=${postgres_db}" \
-  -e 'POSTGRES_HOST=postgres' \
-  --name datastore \
-  --link datastore-postgres:postgres \
-  opentraffic/datastore:latest
-
-
+# start the python segment matcher
+#
 echo "Starting the reporter container..."
 docker run \
   -d \
   -p ${reporter_port}:${reporter_port} \
   -e "DATASTORE_URL=http://datastore:${datastore_port}/store?" \
   --name reporter \
-  --link datastore:datastore \
   -v ${PWD}/${valhalla_data_dir}:/data/valhalla \
   reporter:latest
 
+# start the flink job manager container
+#
+echo "Starting the flink job manager..."
+docker run \
+  -d \
+  -p ${flink_port}:${flink_port} \
+  --name jobmanager \
+  -v $(dirname ${flink_job}):/jobs \
+  -t flink local
+  
 sleep 3
 
-# generate some test json data with the csv formatter,
-#   drop it in the bind mount so we can access it from
-#   outside the container in the next test.
+# submit the flink job to the flink job manager
+# for now we'll use file mode, later we'll switch to consume from kafka
 #
-echo "Generating reporter request data with the csv formatter..."
-sudo lxc-attach \
-  -n "$(docker inspect --format "{{.Id}}" reporter)" -- \
-  bash -c "/reporter/csv_formatter.py /data/valhalla/grab.csv >/data/valhalla/reporter_requests.json"
+echo "Running flink job from file..."
+docker cp ${flink_job} "$(docker inspect --format "{{.Id}}" jobmanager)":/job.jar
+sudo lxc-attach -n "$(docker inspect --format "{{.Id}}" jobmanager)" -- bash -c "/opt/flink/bin/flink run -c opentraffic.accumulator.Accumulator /job.jar --file valhalla_data/*.csv --reporter http://reporter:${reporter_port}/report?"
 
-# basic json validation
+# test that we got data through to the echo server
+# TODO: this is lame do something more meaningful
 #
-echo "Validating csv formatter output is valid json..."
-jq "." ${PWD}/${valhalla_data_dir}/reporter_requests.json >/dev/null
-
-# test the generated data against the service
-#
-echo "Running test data through the matcher service..."
-cat ${PWD}/${valhalla_data_dir}/reporter_requests.json | \
-  head -50 | \
-    parallel \
-      -j2 \
-      --halt 2 \
-      --progress \
-      curl \
-        --fail \
-        --silent \
-        --max-time 3 \
-        --retry 3 \
-        --retry-delay 3 \
-        --data '{}' localhost:${reporter_port}/report?
+posts=$(awk '{print $4}' datastore.log | grep -Fc POST)
+oks=$(awk '{print $4}' datastore.log | grep -Fc 200)
+if [[ ${oks} == 0 ]] || [[ ${posts} != ${oks} ]]; then
+  exit 1
+fi
 
 echo "Done!"
