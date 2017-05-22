@@ -23,7 +23,6 @@ public class FileProducer  extends Thread {
     properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, cmd.getOptionValue("bootstrap"));
     properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
     properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-    properties.put("request.required.acks", "1");
     producer = new KafkaProducer<String, String>(properties);
     this.topic = cmd.getOptionValue("root-topic");
     this.files = cmd.getOptionValue("files").split(",");
