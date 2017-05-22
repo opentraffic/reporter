@@ -6,6 +6,7 @@ import java.nio.file.Paths;
 import java.util.Properties;
 import java.util.stream.Stream;
 
+import org.apache.commons.cli.CommandLine;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -18,14 +19,14 @@ public class FileProducer  extends Thread {
   private final String topic;
   private final String[] files;
 
-  public FileProducer(String topic, String[] files) {
-    properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+  public FileProducer(CommandLine cmd) {
+    properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, cmd.getOptionValue("bootstrap"));
     properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
     properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
     properties.put("request.required.acks", "1");
     producer = new KafkaProducer<String, String>(properties);
-    this.topic = topic;
-    this.files = files;
+    this.topic = cmd.getOptionValue("root-topic");
+    this.files = cmd.getOptionValue("files").split(",");
   }
   
   private void produce(String line) {

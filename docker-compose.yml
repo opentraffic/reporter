@@ -19,7 +19,7 @@ services:
       - "2181:2181"
 
   kafka:
-    build: .
+    image: wurstmeister/kafka:latest
     ports:
       - "9092:9092"
     links:

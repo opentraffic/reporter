@@ -1,8 +1,10 @@
 package org.opentraffic.reporter;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
+import org.apache.commons.cli.CommandLine;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -15,13 +17,14 @@ public class PrintConsumer  extends Thread {
   private final Properties properties = new Properties();
   private final List<String> topics;
 
-  public PrintConsumer(List<String> topics) {
+  public PrintConsumer(CommandLine cmd) {
     properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-    properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+    properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, cmd.getOptionValue("bootstrap"));
     properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
     properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
     consumer = new KafkaConsumer<String, String>(properties);
-    this.topics = topics;
+    this.topics = new ArrayList<String>();
+    this.topics.add(cmd.getOptionValue("leaf-topic"));
   }
   
   @Override
