@@ -106,7 +106,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     segments['provider'] = os.environ.get('PROVIDER', '')
 
     #Now we will send the whole segments on to the datastore
-    if len(segments['segments']):
+    if os.environ.get('DATASTORE_URL') and len(segments['segments']):
       response = requests.post(os.environ['DATASTORE_URL'], json.dumps(segments))
       if response.status_code != 200:
         raise Exception(response.text)
@@ -183,8 +183,6 @@ if __name__ == '__main__':
     address = sys.argv[2].split('/')[-1].split(':')
     address[1] = int(address[1])
     address = tuple(address)
-    os.environ['DATASTORE_URL']
-
   except Exception as e:
     sys.stderr.write('Problem with config file: {0}\n'.format(e)) 
     sys.exit(1)
