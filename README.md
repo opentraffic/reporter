@@ -4,14 +4,11 @@ Open Traffic Reporter is part of OTv2, the new Open Traffic platform under devel
 
 Reporter takes in raw GPS probe data, matches it to [OSMLR segments](https://github.com/opentraffic/osmlr/blob/master/docs/intro.md) using [Valhalla Meili](https://github.com/valhalla/valhalla/blob/master/docs/meili.md), and sends segments and speeds to the centralized [Open Traffic Datastore](https://github.com/opentraffic/datastore).
 
-## Docker
-
-Set a DOCKER_HOST env var:
-  export DOCKER_HOST=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
+## Docker with Reporter, Kafka & Zookeeper
 
 Build/run the python [matcher service](https://github.com/opentraffic/reporter) via docker-compose.
 
-## Kafka & Zookeeper
+## To Run a local Kafka & Zookeeper
 
 If interested in running your own Kafka Producer and Consumer, please check out this GitHub repository on Docker Hub for instructions on how to do so:
 [kafka-docker](http://wurstmeister.github.io/kafka-docker/)
@@ -20,25 +17,49 @@ OR
 
 Once you have the necessary scripts from the [kafka-docker], you can follow these steps:
 
-  Set a DOCKER_HOST env var:
-  export DOCKER_HOST=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
+  Update the following within docker-compose.yml kafka environment:
+   replace `build: . ` with `image: wurstmeister/kafka:latest` to use the kafka image instead of cloning and running the kafka repo.
+   KAFKA_ADVERTISED_HOST_NAME: 172.17.0.1
+   KAFKA_ADVERTISED_PORT: 9092
+   KAFKA_CREATE_TOPICS: "trace:4:1" -> give it a topic name
 
-  Terminal 1:
-  docker-compose scale kafka=2
-  docker-compse up
+  Step 1 / Terminal 1:
+  * cd to open_traffic/reporter repo root directory
+  #build
+  * docker build -t opentraffic/reporter .
+  #start kafka, zookeeper and report thru kafka
+  * docker-compose up
+  
+  NOTE: If Kafka does not start, try doing the following first then repeat Step 1:
+  # Delete all containers
+  * docker rm $(docker ps -a -q)
+  # Delete all images
+  * docker rmi -f $(docker images -q)
 
-  Terminal 2: CREATE TOPIC AND DESCRIBE
-  ./start-kafka-shell.sh ${DOCKER_HOST} ${DOCKER_HOST}:2181
-  bash-4.3# $KAFKA_HOME/bin/kafka-topics.sh --create --topic topic --partitions 4 --zookeeper $ZK --replication-factor 2
-  bash-4.3# $KAFKA_HOME/bin/kafka-topics.sh --describe --topic topic --zookeeper $ZK
+  Step 2 / Terminal 2: CREATE TOPIC AND DESCRIBE
+  * docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -i -t wurstmeister/kafka /bin/bash
+  NOTE: If you did not add KAFKA_CREATE_TOPICS to your docker-compose.yml, you can create a topic like this:
+  * bash-4.3# $KAFKA_HOME/bin/kafka-topics.sh --create --topic trace --partitions 4 --zookeeper 172.17.0.1 --replication-factor 1
+  * bash-4.3# $KAFKA_HOME/bin/kafka-topics.sh --describe --topic trace --zookeeper 172.17.0.1
 
-  Terminal 3: START PRODUCER(BROKERS)
-  ./start-kafka-shell.sh ${DOCKER_HOST} ${DOCKER_HOST}:2181
-  bash-4.3# $KAFKA_HOME/bin/kafka-console-producer.sh --broker-list ${DOCKER_HOST}:9092 --topic topic
+  Step 3 / Terminal 3: START PRODUCER(BROKERS)
+  * docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -i -t wurstmeister/kafka /bin/bash
+  * bash-4.3# $KAFKA_HOME/bin/kafka-console-producer.sh --broker-list 172.17.0.1:9092 --topic trace
 
-  Terminal 4: START CONSUMER
-  ./start-kafka-shell.sh ${DOCKER_HOST} ${DOCKER_HOST}:2181
-  bash-4.3# $KAFKA_HOME/bin/kafka-console-consumer.sh --zookeeper ${DOCKER_HOST}:2181 --topic topic --from-beginning
+  Step 4 / Terminal 4: START CONSUMER
+  * docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -i -t wurstmeister/kafka /bin/bash
+  * bash-4.3# $KAFKA_HOME/bin/kafka-console-consumer.sh --zookeeper 172.17.0.1:2181 --topic trace --from-beginning
+
+  #test
+  type "hello" in producer terminal
+  you should see "hello" in consumer terminal
+
+  Step 5 / Run scripts manually to send requests via Producer to local Kafka Consumer
+  # Run to_kafka_POST.sh directly with one data file:
+  * ./to_kafka_producer.py ../../reporter/py/2016_11_01_0000_part_00 --bootstrap='172.17.0.1:9092' --topic='trace'
+  OR
+  # Run entire data from S3:
+  * AWS_DEFAULT_PROFILE=opentraffic ./make_requests.sh -s s3://grab_historical_data/2016_11/ -f 2016_11_01.*gz -b 172.17.0.1:9092 -t trace
 
 ### To run via docker composer
 * move your tarball to `/some/path/to/data/tiles.tar`
@@ -98,7 +119,6 @@ Build/run the python [matcher service](https://github.com/opentraffic/reporter) 
 * move your tarball to `/some/path/to/data/tiles.tar`
   * the path is of your choosing, the name of the tarball is currently required to be `tiles.tar`
 * `export DATAPATH=/data/valhalla/manila`
-* `export DOCKER_HOST=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')`
 * `sudo docker build -t opentraffic/reporter .`
 * `sudo -E /usr/bin/docker-compose up`
 
@@ -135,7 +155,7 @@ Then for the most part you follow [this](https://ci.apache.org/projects/flink/fl
     mvn clean package -DskipTests #this takes a while
     export FLINK_HOME=${PWD}/build-target
     ${FLINK_HOME}/bin/start-local.sh
-    tail ${FLINK_HOME}/log/flink-*-jobmanager-*.log    
+    tail ${FLINK_HOME}/log/flink-*-jobmanager-*.log
 
 If you like GUIs then you can have a look at [http://localhost:8081](http://localhost:8081) to see what flink is doing. Later on when you are done running flink you can kill it with:
 
