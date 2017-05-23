@@ -36,6 +36,7 @@ public class Formatter {
   public static Formatter SVFormatter(String separator, int uuid_index, int lat_index, int lon_index, int time_index, int accuracy_index, String time_format) {
     Formatter f = new Formatter();
     f.type = Type.SV;
+    f.separator = separator;
     f.uuid_index = uuid_index;
     f.lat_index = lat_index;
     f.lon_index = lon_index;

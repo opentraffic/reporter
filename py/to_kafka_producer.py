@@ -27,7 +27,7 @@ parser.add_argument('--topic', type=str, help='Create a topic for which the mess
 args = parser.parse_args()
 args.file = args.file[0]
 
-producer = KafkaProducer(bootstrap_servers = args.bootstrap.split(','),api_version=(0, 9))
+producer = KafkaProducer(bootstrap_servers = args.bootstrap.split(','),api_version=(0, 10))
 
 #output a single body
 #for each line from stdin
