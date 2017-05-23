@@ -22,18 +22,25 @@ public class Reporter {
   public static CommandLine parse(String[] args) {
     Option bootstrap = new Option("b", "bootstrap", true, "Bootstrap servers config");
     bootstrap.setRequired(true);
-    Option root_topic = new Option("r", "root-topic", true, "Root topic");
+    Option root_topic = new Option("r", "root-topic", true, "Root topic, where the raw custom format point messages come into the system");
     root_topic.setRequired(true);
-    Option leaf_topic = new Option("l", "leaf-topic", true, "Leaf topic");
+    Option intermediate_topic = new Option("i", "intermediate-topic", true, "Intermediate topic, where the keyed-reformatted points are published");
+    intermediate_topic.setRequired(true);
+    Option leaf_topic = new Option("l", "leaf-topic", true, "Leaf topic, where the batched/windowed portions of a given keys points are published ");
     leaf_topic.setRequired(true);
-    Option files = new Option("f", "files", true, "The files to produce from");
-    files.setRequired(true);
+    Option verbose = new Option("v", "verbose", false, "Creates a consumer that prints the leaf topic messages to the console");
+    verbose.setRequired(false);
+    Option duration = new Option("d", "duration", false, "How long to run the program in milliseconds, defaults to (essentially) forever");
+    duration.setRequired(false);
+    duration.setType(Long.class);
     
     Options options = new Options();
     options.addOption(bootstrap);
     options.addOption(root_topic);
+    options.addOption(intermediate_topic);
     options.addOption(leaf_topic);
-    options.addOption(files);
+    options.addOption(verbose);
+    options.addOption(duration);
 
     CommandLineParser parser = new DefaultParser();
     HelpFormatter formatter = new HelpFormatter();
@@ -70,29 +77,32 @@ public class Reporter {
     //a key of string type and a value of Point type
     builder.addSource("Source", new StringDeserializer(), new StringDeserializer(), cmd.getOptionValue("root-topic"));
     builder.addProcessor("Formatter", new KeyedFormattingProcessor(args), "Source");
-    builder.addSink("KeyedPointsSink", "Points", new StringSerializer(), pointSerder.serializer(), "Formatter");
+    builder.addSink("KeyedPointsSink", cmd.getOptionValue("intermediate-topic"), new StringSerializer(), pointSerder.serializer(), "Formatter");
     
     //take batches of points for a given key (uuid) and when some threshold is met
     //send that batch of points off to the reporter to be matched and update the
     //batch according to how much of the batch was used in matching
-    builder.addSource("KeyedPointsSource", new StringDeserializer(), pointSerder.deserializer(), "Points");
+    builder.addSource("KeyedPointsSource", new StringDeserializer(), pointSerder.deserializer(), cmd.getOptionValue("intermediate-topic"));
     builder.addProcessor("Batcher", new BatchingProcessor(args), "KeyedPointsSource");
     builder.addStateStore(BatchingProcessor.GetStore(), "Batcher");
     builder.addSink("Sink", cmd.getOptionValue("leaf-topic"), "Batcher");
     
     //start consuming
-    PrintConsumer consumer = new PrintConsumer(cmd);
-    consumer.setDaemon(true);
-    consumer.start();
+    if(cmd.hasOption("verbose")) {
+      Thread consumer = new Thread(new PrintConsumer(cmd));
+      consumer.setDaemon(true);
+      consumer.start();
+    }
     
     //start the topology
     KafkaStreams streams = new KafkaStreams(builder, props);
     streams.start();
     
-    //start producing
-    FileProducer producer = new FileProducer(cmd);
-    producer.start();
-    producer.join();
+    //wait a bit or basically forever
+    long duration = cmd.hasOption("duration") ? (long)cmd.getParsedOptionValue("duration") : Long.MAX_VALUE;
+    if(duration == 0)
+      duration = Long.MAX_VALUE;
+    Thread.sleep(duration);
 
     //done
     pointSerder.close();

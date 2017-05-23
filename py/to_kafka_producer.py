@@ -35,7 +35,7 @@ handle = open(args.file, 'r') if args.file != '-' else sys.stdin
 for line in handle:
   #try to work on the line as normal
   try:
-   producer.send(args.topic, line)
+   producer.send(args.topic, line.rstrip())
   #we couldnt parse this line so lets output what we have so far
   except:
     pass

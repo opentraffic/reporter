@@ -28,7 +28,8 @@ services:
       KAFKA_ADVERTISED_HOST_NAME: 172.17.0.1
       KAFKA_ADVERTISED_PORT: 9092
       KAFKA_ZOOKEEPER_CONNECT: zk:2181
-      KAFKA_CREATE_TOPICS: "trace:4:1"
+      #these topics map directly to those in the kafka application
+      KAFKA_CREATE_TOPICS: "raw:1:1,formatted:1:1,batched:4:1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
