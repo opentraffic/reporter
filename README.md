@@ -140,35 +140,3 @@ http://localhost:8002/report?json={"uuid":"100609","trace":[{"lat":14.597706,"lo
 ## Authentication
 
 Currently we only support a rudimentary form of authentication between the reporter and the datastore. The idea is that the reporter will be run on premisis (ie. by fleet operator) and will then need to authenticate itself with the centralized datastore architecture. For now this is done via a `secret_key` query parameter in the reporters request url to the datastore. The datastore must be configured to do the authentication. The reporter gets the url for the datastore from an environment variable. This means that adding authentication only requires that one change this url to include the `secret_key` query parameter.
-
-## Flink WIP
-
-First step is to install flink but to get it to work on newer ubuntu you need to make sure you use openjdk8 instead of openjdk9 (the default).
-
-    sudo apt-get install openjdk-8-jdk
-    export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
-
-Then for the most part you follow [this](https://ci.apache.org/projects/flink/flink-docs-release-1.3/quickstart/setup_quickstart.html#quickstart) to get flink running. The quick summary is this:
-
-    git clone --branch master --depth 1 --recursive https://github.com/apache/flink.git
-    cd flink
-    mvn clean package -DskipTests #this takes a while
-    export FLINK_HOME=${PWD}/build-target
-    ${FLINK_HOME}/bin/start-local.sh
-    tail ${FLINK_HOME}/log/flink-*-jobmanager-*.log
-
-If you like GUIs then you can have a look at [http://localhost:8081](http://localhost:8081) to see what flink is doing. Later on when you are done running flink you can kill it with:
-
-    ${FLINK_HOME}/bin/stop-local.sh
-
-After you've verified that flink is up and running you can run the accumulator on flink. The accumulator has two modes; file-based for local testing and kafka-based for running in a larger real-time system. To build the accumulator program do:
-
-    mvn clean package
-
-To run it in file mode do:
-
-    ${FLINK_HOME}/bin/flink run -c opentraffic.accumulator.Accumulator target/accumulator-1.0-SNAPSHOT.jar --file some_file --reporter http://localhost:8002/report?
-
-And to run it in kafka mode do:
-
-    ${FLINK_HOME}/bin/flink run -c opentraffic.accumulator.Accumulator target/accumulator-1.0-SNAPSHOT.jar --topic some_topic --bootstrap.servers kafka_brokers --zookeeper.connect zk_quorum --group.id some_id --reporter http://localhost:8002/report?
