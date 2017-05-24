@@ -9,7 +9,7 @@ public class KeyedFormattingProcessor implements ProcessorSupplier<String, Strin
   private Formatter formatter;
   public KeyedFormattingProcessor(String[] args) {
     //TODO: actually parse the args and pick the appropriate formatter
-    formatter = Formatter.SVFormatter("|", 1, 9, 10, 0, 5);
+    formatter = Formatter.SVFormatter("\\|", 1, 9, 10, 0, 5, "yyyy-MM-dd HH:mm:ss");
   }
   
   @Override

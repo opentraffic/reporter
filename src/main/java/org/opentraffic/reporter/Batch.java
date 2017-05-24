@@ -16,8 +16,8 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 public class Batch {
   
   public long elapsed;
-  public float traveled;
-  public static final int SIZE = 4 + 8 + 4; //keep this up to date
+  public float traveled; //the square of the distance traveled
+  public static final int SIZE = 8 + 4; //keep this up to date
   public List<Point> points;
   
   public Batch() {
@@ -33,8 +33,8 @@ public class Batch {
   }
 
   //get the distance between points using equirectangular approximation
-  private static final double rad_per_deg = Math.PI / 180;
-  private static final double meters_per_deg = 20037581.187 / 180;
+  private static final double rad_per_deg = Math.PI / 180.0;
+  private static final double meters_per_deg = 20037581.187 / 180.0;
   private double distance(Point a, Point b){
     double x = (a.lon - b.lon) * meters_per_deg * Math.cos(.5f * (a.lat + b.lat) * rad_per_deg);
     double y = (a.lat - b.lat) * meters_per_deg;
@@ -57,7 +57,7 @@ public class Batch {
       Point.Serder.put_json(p, sb);
       sb.append(',');
     }
-    sb.replace(sb.length() - 1, sb.length() - 1, "]}");
+    sb.replace(sb.length() - 1, sb.length() + 1, "]}");
     String post_body = sb.toString();
     //go to the server for json
     String response = HttpClient.POST(url, post_body);
@@ -96,7 +96,9 @@ public class Batch {
         public void configure(Map<String, ?> configs, boolean isKey) {}
         @Override
         public byte[] serialize(String topic, Batch batch) {
-          ByteBuffer buffer = ByteBuffer.allocate(Batch.SIZE + Point.SIZE * batch.points.size());
+          if(batch == null)
+            return null;
+          ByteBuffer buffer = ByteBuffer.allocate(4 + Batch.SIZE + Point.SIZE * batch.points.size());
           buffer.putInt(batch.points.size());
           buffer.putLong(batch.elapsed);
           buffer.putFloat(batch.traveled);
@@ -116,6 +118,8 @@ public class Batch {
         public void configure(Map<String, ?> configs, boolean isKey) {}
         @Override
         public Batch deserialize(String topic, byte[] bytes) {
+          if(bytes == null)
+            return null;
           ByteBuffer buffer = ByteBuffer.wrap(bytes);
           int count = buffer.getInt();
           Batch batch = new Batch();
