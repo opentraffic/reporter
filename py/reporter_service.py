@@ -106,44 +106,42 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     segments['provider'] = os.environ.get('PROVIDER', '')
 
     #Now we will send the whole segments on to the datastore
+    segments_json = json.dumps(segments, separators=(',', ':'))
     if os.environ.get('DATASTORE_URL') and len(segments['segments']):
-      response = requests.post(os.environ['DATASTORE_URL'], json.dumps(segments))
+      response = requests.post(os.environ['DATASTORE_URL'], segments_json)
       if response.status_code != 200:
         raise Exception(response.text)
 
-    return segments
+    return segments_json
 
 
   #parse the request because we dont get this for free!
   def handle_request(self, post):
-    #get the reporter data
-    trace = self.parse_trace(post)
+    #get the trace data
+    try:
+      trace = self.parse_trace(post)
+    except Exception as e:
+      return 400, '{"error":"' + str(e) + '"}'
+
     #uuid is required
     uuid = trace.get('uuid')
     if uuid is None:
-      return 400, 'uuid is required'
+      return 400, '{"error":"uuid is required"}'
 
     #one or more points is required
     try:
       trace['trace'][1]
     except Exception as e:
-      return 400, 'trace must be a non zero length array of object each of which must have at least lat, lon and time'
+      return 400, '{"error":"trace must be a non zero length array of object each of which must have at least lat, lon and time"}'
 
     #possibly report on what we have
     try:
-      segments = self.report(trace)
+      return 200, self.report(trace)
     except Exception as e:
-      return 500, str(e)
-
-    return 200, segments
+      return 500, '{"error":"' + str(e) + '"}'
 
   #send an answer
   def answer(self, code, body):
-    if isinstance(body, str):
-      response = json.dumps({'error': body}, separators=(',', ':'))
-    else:
-      response = json.dumps(body, separators=(',', ':'))
-
     try:
       self.send_response(code)
 
@@ -154,7 +152,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       self.end_headers()
 
       #hand it back
-      self.wfile.write(response)
+      self.wfile.write(body)
     except:
       pass
 

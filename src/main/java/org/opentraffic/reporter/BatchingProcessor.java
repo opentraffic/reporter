@@ -22,10 +22,10 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
   }
   
   //TODO: get these magic constants from arguments
-  private final long REPORT_TIME = 60000;
-  private final int REPORT_COUNT = 10;
-  private final int REPORT_DIST = 500;
-  private final long SESSION_GAP = 60000;
+  private final long REPORT_TIME = 60;   //seconds
+  private final int REPORT_COUNT = 10;   //number of points
+  private final int REPORT_DIST = 500;   //meters
+  private final long SESSION_GAP = 60000;//milliseconds
   private final String url =  "http://localhost:8002/report?";
 
   public BatchingProcessor(String[] args) {
@@ -58,11 +58,13 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         Batch batch = store.delete(key);
         if(batch == null)
           batch = new Batch(point);
-        else
+        //we have more than one point now
+        else {
           batch.update(point);
-        
-        //see if it needs reported on
-        report(key, batch);
+          String result = batch.report(key, url, REPORT_DIST, REPORT_COUNT, REPORT_TIME);
+          if(result != null)
+            context.forward(key, result);
+        }
         
         //put it back if it has something
         if(batch.points.size() > 0)
@@ -75,15 +77,6 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         
         //move on
         context.commit();
-      }
-      
-      private void report(String key, Batch batch) {
-        //if it meets the requirements lets act on it
-        if(batch.traveled > REPORT_DIST * REPORT_DIST && batch.points.size() > REPORT_COUNT && batch.elapsed > REPORT_TIME) {
-          String response = batch.report(key, url);
-          //for now we'll just forward the response on in case we want something downstream
-          context.forward(key, response);
-        }
       }
       
       private void clean(String key) {
@@ -100,7 +93,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
           Pair<Long, String> time_key = time_to_key.pop();
           Batch batch = this.store.get(time_key.second);
           //TODO: dont actually report here, instead insert into a queue that a thread can drain asynchronously
-          batch.report(time_key.second, url);
+          batch.report(time_key.second, url, 0, 2, 0);
           key_to_time_iter.remove(time_key.second);          
         }
         
@@ -124,7 +117,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         KeyValueIterator<String, Batch> iter = store.all();
         while(iter.hasNext()) {
           KeyValue<String, Batch> kv = iter.next();
-          report(kv.key, kv.value);
+          kv.value.report(kv.key, url, 0, 2, 0);
         }
         iter.close();
         //clean up

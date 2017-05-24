@@ -15,19 +15,15 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 
 public class Batch {
   
-  public long elapsed;
-  public float traveled; //the square of the distance traveled
-  public static final int SIZE = 8 + 4; //keep this up to date
+  public float max_separation; //the maximum distance between the first an any other point
   public List<Point> points;
   
   public Batch() {
-    elapsed = 0;
-    traveled = 0;
+    max_separation = 0;
     points = new ArrayList<Point>();
   }
   public Batch(Point p) {
-    elapsed = 0;
-    traveled = 0;
+    max_separation = 0;
     points = new ArrayList<Point>();
     points.add(p);
   }
@@ -38,17 +34,21 @@ public class Batch {
   private double distance(Point a, Point b){
     double x = (a.lon - b.lon) * meters_per_deg * Math.cos(.5f * (a.lat + b.lat) * rad_per_deg);
     double y = (a.lat - b.lat) * meters_per_deg;
-    return x * x + y * y;
+    return Math.sqrt(x * x + y * y);
   }
   
   public void update(Point p) {
-    Point last = points.get(points.size() - 1);
-    elapsed += p.time - last.time;
-    traveled += distance(p, last);
+    if(points.size() > 0)
+      max_separation = (float)Math.max(max_separation, distance(p, points.get(0)));
     points.add(p);
   }
   
-  public String report(String key, String url) {
+  public String report(String key, String url, int min_dist, int min_size, long min_elapsed) {
+    //if it doesnt meet the requirements then bail
+    long elapsed = points.get(points.size() - 1).time - points.get(0).time;
+    if(max_separation < min_dist || points.size() < min_size || elapsed < min_elapsed)
+      return null;
+    
     //make a post body: uuid json + uuid + trace json + number of points * (single point json) + end of json array and object 
     StringBuilder sb = new StringBuilder();
     sb.ensureCapacity(9 + key.length() + 11 + points.size() * (18 + 18 + 13 + 22 + 1) + 2);
@@ -71,10 +71,15 @@ public class Batch {
       int trim_to = last == null || !last.has("segment_id") || last.get("length").asDouble() < 0 ?
         points.size() : last.get("begin_shape_index").asInt();
       points.subList(0,trim_to).clear();
-      //TODO: trim elapsed and traveled
+      //update the info about whats now in this batch
+      max_separation = 0;
+      for(int i = 1; i < points.size(); i++)
+        max_separation = (float)Math.max(max_separation, distance(points.get(i), points.get(0)));
     }
     catch(Exception e) {
-      //TODO: how much do we trim?
+      //TODO: maybe we shouldnt trim everything?
+      max_separation = 0;
+      points.clear();
     }
     //return the raw response string
     return response;    
@@ -98,10 +103,9 @@ public class Batch {
         public byte[] serialize(String topic, Batch batch) {
           if(batch == null)
             return null;
-          ByteBuffer buffer = ByteBuffer.allocate(4 + Batch.SIZE + Point.SIZE * batch.points.size());
+          ByteBuffer buffer = ByteBuffer.allocate(4 + 4 + Point.SIZE * batch.points.size());
           buffer.putInt(batch.points.size());
-          buffer.putLong(batch.elapsed);
-          buffer.putFloat(batch.traveled);
+          buffer.putFloat(batch.max_separation);
           for(Point p : batch.points)
             Point.Serder.put(p, buffer);
           return buffer.array();
@@ -124,9 +128,7 @@ public class Batch {
           int count = buffer.getInt();
           Batch batch = new Batch();
           batch.points = new ArrayList<Point>(count);
-          
-          batch.elapsed = buffer.getLong();
-          batch.traveled = buffer.getFloat();
+          batch.max_separation = buffer.getFloat();
           for(int i = 0; i < count; i++)
             batch.points.add(Point.Serder.get(buffer));          
           return batch;
