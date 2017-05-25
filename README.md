@@ -56,10 +56,10 @@ Once you have the necessary scripts from the [kafka-docker], you can follow thes
 
   Step 5 / Run scripts manually to send requests via Producer to local Kafka Consumer
   # Run to_kafka_POST.sh directly with one data file:
-  * ./to_kafka_producer.py ../../reporter/py/2016_11_01_0000_part_00 --bootstrap='172.17.0.1:9092' --topic='trace'
+  * ./to_kafka_producer.py ../../reporter/py/<data_extract> --bootstrap='172.17.0.1:9092' --topic='trace'
   OR
   # Run entire data from S3:
-  * AWS_DEFAULT_PROFILE=opentraffic ./make_requests.sh -s s3://grab_historical_data/2016_11/ -f 2016_11_01.*gz -b 172.17.0.1:9092 -t trace
+  * AWS_DEFAULT_PROFILE=opentraffic ./make_requests.sh -s s3://<data_url> -f <file>.*gz -b 172.17.0.1:9092 -t trace
 
 ### To run via docker composer
 * move your tarball to `/some/path/to/data/tiles.tar`
