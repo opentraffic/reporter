@@ -18,6 +18,10 @@ echo "Starting the datastore..."
 prime_echod tcp://*:${datastore_port} 1 &> datastore.log &
 echo_pid=$!
 
+# so we dont need to link containers
+#
+docker network create --driver bridge opentraffic
+
 # start the python segment matcher
 #
 echo "Starting the python reporter container..."
