@@ -65,8 +65,8 @@ docker run \
   --link kafka \
   --link reporter-py \
   --name reporter-kafka \
-  --entrypoint  /usr/local/bin/reporter-kafka -b kafka:9092 -r raw -i formatted -l batched -u http://reporter-py:8002/report? -v
-  reporter:latest
+  reporter:latest \
+  "/usr/local/bin/reporter-kafka -b kafka:9092 -r raw -i formatted -l batched -u http://reporter-py:8002/report? -v"
   
 sleep 3
 
