@@ -6,13 +6,6 @@ set -e
 echo "Sourcing env from ./tests/env.sh..."
 . ./tests/env.sh
 
-# build flink job
-#
-export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
-mvn install 2>&1 1>/dev/null
-mvn clean package
-flink_job=${PWD}/target/accumulator-1.0-SNAPSHOT.jar
-
 # download test data
 #
 echo "Downloading test data..."
@@ -27,41 +20,67 @@ echo_pid=$!
 
 # start the python segment matcher
 #
-echo "Starting the reporter container..."
+echo "Starting the python reporter container..."
 docker run \
   -d \
   -p ${reporter_port}:${reporter_port} \
   -e "DATASTORE_URL=http://datastore:${datastore_port}/store?" \
-  --name reporter \
+  --name reporter-py \
   -v ${PWD}/${valhalla_data_dir}:/data/valhalla \
   reporter:latest
 
-# start the flink job manager container
+# start zookeeper
 #
-echo "Starting the flink job manager..."
+echo "Starting zookeeper..."
 docker run \
   -d \
-  -p ${flink_port}:${flink_port} \
-  --name jobmanager \
-  -v $(dirname ${flink_job}):/jobs \
-  -t flink local
+  -p ${zookeeper_port}:${zookeeper_port} \
+  --name zookeeper \
+  wurstmeister/zookeeper:latest
+
+# start kafka
+#
+echo "Starting kafka..."
+docker run \
+  -d \
+  -p ${kafka_port}:${kafka_port} \
+  --link zookeeper \
+  -e "KAFKA_ADVERTISED_HOST_NAME=kafka" \
+  -e "KAFKA_ADVERTISED_PORT=${kafka_port}" \
+  -e "KAFKA_ZOOKEEPER_CONNECT=zookeeper:${zookeeper_port}" \
+  -e "KAFKA_CREATE_TOPICS=raw:1:1,formatted:1:1,batched:4:1" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  --name kafka \
+  wurstmeister/kafka:latest
+
+# wait for the topics to be created
+#
+sleep 30
+
+# start kafka job
+#
+echo "Starting kafka reporter..."
+docker run \
+  -d \
+  --link kafka \
+  --link reporter-py \
+  --name reporter-kafka \
+  /usr/local/bin/reporter-kafka -b kafka:9092 -r raw -i formatted -l batched -u http://reporter-py:8002/report? -v
   
 sleep 3
 
-# submit the flink job to the flink job manager
-# for now we'll use file mode, later we'll switch to consume from kafka
-#
-echo "Running flink job from file..."
-docker cp ${flink_job} "$(docker inspect --format "{{.Id}}" jobmanager)":/job.jar
-sudo lxc-attach -n "$(docker inspect --format "{{.Id}}" jobmanager)" -- bash -c "/opt/flink/bin/flink run -c opentraffic.accumulator.Accumulator /job.jar --file valhalla_data/*.csv --reporter http://reporter:${reporter_port}/report?"
+
+#pump the data into kafka
+py/cat_to_kafka --bootstrap localhost:9092 --topic raw grab.csv
 
 # test that we got data through to the echo server
 # TODO: this is lame do something more meaningful
 #
 posts=$(awk '{print $4}' datastore.log | grep -Fc POST)
-oks=$(awk '{print $4}' datastore.log | grep -Fc 200)
 if [[ ${oks} == 0 ]] || [[ ${posts} != ${oks} ]]; then
   exit 1
 fi
 
+sleep 3
+kill ${echo_pid}
 echo "Done!"
