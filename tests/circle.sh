@@ -27,7 +27,7 @@ docker network create --driver bridge opentraffic
 echo "Starting the python reporter container..."
 docker run \
   -d \
-  --network opentraffic \
+  --net opentraffic \
   -p ${reporter_port}:${reporter_port} \
   -e "DATASTORE_URL=http://datastore:${datastore_port}/store?" \
   --name reporter-py \
@@ -39,7 +39,7 @@ docker run \
 echo "Starting zookeeper..."
 docker run \
   -d \
-  --network opentraffic \
+  --net opentraffic \
   -p ${zookeeper_port}:${zookeeper_port} \
   --name zookeeper \
   wurstmeister/zookeeper:latest
@@ -49,7 +49,7 @@ docker run \
 echo "Starting kafka..."
 docker run \
   -d \
-  --network opentraffic \
+  --net opentraffic \
   -p ${kafka_port}:${kafka_port} \
   -e "KAFKA_ADVERTISED_HOST_NAME=kafka" \
   -e "KAFKA_ADVERTISED_PORT=${kafka_port}" \
@@ -68,7 +68,7 @@ sleep 30
 echo "Starting kafka reporter..."
 docker run \
   -d \
-  --network opentraffic \
+  --net opentraffic \
   --name reporter-kafka \
   reporter:latest \
   "/usr/local/bin/reporter-kafka -b kafka:9092 -r raw -i formatted -l batched -u http://reporter-py:8002/report? -v"
