@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.ListIterator;
 
+import org.apache.commons.cli.CommandLine;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.processor.Processor;
 import org.apache.kafka.streams.processor.ProcessorContext;
@@ -26,10 +27,10 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
   private final int REPORT_COUNT = 10;   //number of points
   private final int REPORT_DIST = 500;   //meters
   private final long SESSION_GAP = 60000;//milliseconds
-  private final String url =  "http://localhost:8002/report?";
+  private final String url;
 
-  public BatchingProcessor(String[] args) {
-    //TODO: parse args into private final vars above
+  public BatchingProcessor(CommandLine cmd) {
+    url = cmd.getOptionValue("reporter-url");
   }
   
   @Override

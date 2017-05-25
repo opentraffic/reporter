@@ -26,8 +26,10 @@ public class Reporter {
     root_topic.setRequired(true);
     Option intermediate_topic = new Option("i", "intermediate-topic", true, "Intermediate topic, where the keyed-reformatted points are published");
     intermediate_topic.setRequired(true);
-    Option leaf_topic = new Option("l", "leaf-topic", true, "Leaf topic, where the batched/windowed portions of a given keys points are published ");
+    Option leaf_topic = new Option("l", "leaf-topic", true, "Leaf topic, where the batched/windowed portions of a given keys points are published");
     leaf_topic.setRequired(true);
+    Option url = new Option("u", "reporter-url", true, "The url to send batched/windowed portions of a given keys points to");
+    url.setRequired(true);
     Option verbose = new Option("v", "verbose", false, "Creates a consumer that prints the leaf topic messages to the console");
     verbose.setRequired(false);
     Option duration = new Option("d", "duration", false, "How long to run the program in milliseconds, defaults to (essentially) forever");
@@ -39,6 +41,7 @@ public class Reporter {
     options.addOption(root_topic);
     options.addOption(intermediate_topic);
     options.addOption(leaf_topic);
+    options.addOption(url);
     options.addOption(verbose);
     options.addOption(duration);
 
@@ -62,7 +65,7 @@ public class Reporter {
     
     Properties props = new Properties();
     //for now lets just start streaming from the beginning instead of coming in mid stream
-    props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+    props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
     //some init
     props.put(StreamsConfig.APPLICATION_ID_CONFIG, "reporter");
     props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, cmd.getOptionValue("bootstrap"));
@@ -83,7 +86,7 @@ public class Reporter {
     //send that batch of points off to the reporter to be matched and update the
     //batch according to how much of the batch was used in matching
     builder.addSource("KeyedPointsSource", new StringDeserializer(), pointSerder.deserializer(), cmd.getOptionValue("intermediate-topic"));
-    builder.addProcessor("Batcher", new BatchingProcessor(args), "KeyedPointsSource");
+    builder.addProcessor("Batcher", new BatchingProcessor(cmd), "KeyedPointsSource");
     builder.addStateStore(BatchingProcessor.GetStore(), "Batcher");
     builder.addSink("Sink", cmd.getOptionValue("leaf-topic"), "Batcher");
     
