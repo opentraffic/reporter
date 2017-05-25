@@ -20,7 +20,9 @@ echo_pid=$!
 
 # so we dont need to link containers
 #
-docker network create --driver bridge opentraffic
+if [ $(docker network ls --filter name=opentraffic -q | wc -l) -eq 0 ]; then
+  docker network create --driver bridge opentraffic
+fi
 
 # start the python segment matcher
 #
@@ -71,7 +73,7 @@ docker run \
   --net opentraffic \
   --name reporter-kafka \
   reporter:latest \
-  "/usr/local/bin/reporter-kafka -b kafka:9092 -r raw -i formatted -l batched -u http://reporter-py:8002/report? -v"
+  /usr/local/bin/reporter-kafka -b kafka:9092 -r raw -i formatted -l batched -u http://reporter-py:8002/report? -v
   
 sleep 3
 
