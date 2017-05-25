@@ -21,6 +21,7 @@ echo_pid=$!
 # so we dont need to link containers
 #
 if [ $(docker network ls --filter name=opentraffic -q | wc -l) -eq 0 ]; then
+  echo "Creating opentraffic bridge network..."
   docker network create --driver bridge opentraffic
 fi
 
@@ -53,7 +54,7 @@ docker run \
   -d \
   --net opentraffic \
   -p ${kafka_port}:${kafka_port} \
-  -e "KAFKA_ADVERTISED_HOST_NAME=kafka" \
+  -e "KAFKA_ADVERTISED_HOST_NAME=172.17.0.1" \
   -e "KAFKA_ADVERTISED_PORT=${kafka_port}" \
   -e "KAFKA_ZOOKEEPER_CONNECT=zookeeper:${zookeeper_port}" \
   -e "KAFKA_CREATE_TOPICS=raw:1:1,formatted:1:1,batched:4:1" \
@@ -73,7 +74,7 @@ docker run \
   --net opentraffic \
   --name reporter-kafka \
   reporter:latest \
-  /usr/local/bin/reporter-kafka -b kafka:9092 -r raw -i formatted -l batched -u http://reporter-py:8002/report? -v
+  /usr/local/bin/reporter-kafka -b 172.17.0.1:${kafka_port} -r raw -i formatted -l batched -u http://reporter-py:8002/report? -v
   
 sleep 3
 
