@@ -102,7 +102,7 @@
 
 					<!-- (optional) name for binary executable, if not set will just -->
 					<!-- make the regular jar artifact executable -->
-					<programFile>kafka-reporter</programFile>
+					<programFile>reporter-kafka</programFile>
 				</configuration>
 
 				<executions>
