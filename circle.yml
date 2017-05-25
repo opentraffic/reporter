@@ -6,7 +6,8 @@ dependencies:
   pre:
     - sudo apt-add-repository -y ppa:valhalla-core/valhalla
     - sudo apt-get update
-    - sudo apt-get install awscli parallel jq git openjdk-8-jdk maven prime-server-bin
+    - sudo apt-get install awscli parallel jq git python-pip openjdk-8-jdk maven prime-server-bin
+    - sudo pip install kafka-python
     - git clone git@github.com:opentraffic/ecs-deploy
     - git clone git@github.com:opentraffic/hub-deploy
   override:
