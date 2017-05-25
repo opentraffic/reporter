@@ -14,9 +14,7 @@ aws s3 cp --recursive s3://circleci_reporter valhalla_data
 # for now we have an echo server in place of the real data store
 # TODO: start the real data store container
 #
-echo "Starting the datastore..."
-prime_echod tcp://*:${datastore_port} 1 &> datastore.log &
-echo_pid=$!
+#echo "Starting the datastore..."
 
 # so we dont need to link containers
 #
@@ -32,7 +30,7 @@ docker run \
   -d \
   --net opentraffic \
   -p ${reporter_port}:${reporter_port} \
-  -e "DATASTORE_URL=http://datastore:${datastore_port}/store?" \
+  -e "TODO_DATASTORE_URL=http://localhost:${datastore_port}/store?" \
   --name reporter-py \
   -v ${PWD}/${valhalla_data_dir}:/data/valhalla \
   reporter:latest
@@ -66,30 +64,38 @@ docker run \
 #
 sleep 30
 
-# start kafka job
+# inject the data into kafka
+#
+{
+  sleep 30 #wait for the kafka worker to connect
+  echo "Producing data to kafka"
+  py/cat_to_kafka.py --bootstrap localhost:9092 --topic raw valhalla_data/*.sv
+} &
+
+# start kafka worker
 #
 echo "Starting kafka reporter..."
 docker run \
-  -d \
+  -t \
   --net opentraffic \
   --name reporter-kafka \
   reporter:latest \
-  /usr/local/bin/reporter-kafka -b ${docker_ip}:${kafka_port} -r raw -i formatted -l batched -u http://reporter-py:8002/report? -v
+  /usr/local/bin/reporter-kafka -b ${docker_ip}:${kafka_port} -r raw -i formatted -l batched -u http://reporter-py:${reporter_port}/report? -d 30000 -v
+
+# done running stuff
+#
+wait
+docker kill $(docker ps -q)
   
-sleep 3
-
-
-#pump the data into kafka
-py/cat_to_kafka.py --bootstrap localhost:9092 --topic raw valhalla_data/*.csv
-
 # test that we got data through to the echo server
 # TODO: this is lame do something more meaningful
 #
-posts=$(awk '{print $4}' datastore.log | grep -Fc POST)
+echo "Checking results..."
+reporter=$(docker ps -a | grep -F reporter-py | awk '{print $1}')
+posts=$(docker logs ${reporter} 2>&1 | awk '{print $6}' | grep -Fc POST)
+oks=$(docker logs ${reporter} 2>&1 | awk '{print $9}' | grep -Fc 200)
 if [[ ${oks} == 0 ]] || [[ ${posts} != ${oks} ]]; then
   exit 1
 fi
 
-sleep 3
-kill ${echo_pid}
 echo "Done!"
