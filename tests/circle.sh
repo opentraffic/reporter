@@ -72,7 +72,7 @@ sleep 3
 
 
 #pump the data into kafka
-py/cat_to_kafka --bootstrap localhost:9092 --topic raw grab.csv
+py/cat_to_kafka --bootstrap localhost:9092 --topic raw valhalla_data/grab.csv
 
 # test that we got data through to the echo server
 # TODO: this is lame do something more meaningful
