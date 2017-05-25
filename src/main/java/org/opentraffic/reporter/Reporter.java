@@ -32,7 +32,7 @@ public class Reporter {
     url.setRequired(true);
     Option verbose = new Option("v", "verbose", false, "Creates a consumer that prints the leaf topic messages to the console");
     verbose.setRequired(false);
-    Option duration = new Option("d", "duration", false, "How long to run the program in milliseconds, defaults to (essentially) forever");
+    Option duration = new Option("d", "duration", true, "How long to run the program in milliseconds, defaults to (essentially) forever");
     duration.setRequired(false);
     duration.setType(Long.class);
     
@@ -102,9 +102,7 @@ public class Reporter {
     streams.start();
     
     //wait a bit or basically forever
-    long duration = cmd.hasOption("duration") ? (long)cmd.getParsedOptionValue("duration") : Long.MAX_VALUE;
-    if(duration == 0)
-      duration = Long.MAX_VALUE;
+    long duration = Long.parseLong(cmd.getOptionValue("duration", Long.toString(Long.MAX_VALUE)));
     Thread.sleep(duration);
 
     //done
