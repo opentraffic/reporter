@@ -30,6 +30,19 @@ public class Reporter {
     leaf_topic.setRequired(true);
     Option url = new Option("u", "reporter-url", true, "The url to send batched/windowed portions of a given keys points to");
     url.setRequired(true);
+    Option formatter = new Option("f", "formatter", true, "The formatter configuration comma separated args for constructing a custom formatter.\n"
+        + "Separated value and json are currently supported.\n"
+        + "To construct a seprated value formatter where the raw messages look like:\n"
+        + "  2017-01-31 16:00:00|uuid_abcdef|x|x|x|accuracy|x|x|x|lat|lon|x|x|x\n"
+        + "Specify a value of:\n"
+        + "  --formatter \"sv,\\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss\"\n"
+        + "To construct a json formatter where the raw messages look like:\n"
+        + "  {\"timestamp\":1495037969,\"id\":\"uuid_abcdef\",\"accuracy\":51.305,\"latitude\":3.465725,\"longitude\":-76.5135033}\n"
+        + "Specify a value of:\n"
+        + "  --formatter \"json,id,latitude,longitude,timestamp,accuracy\"\n"
+        + "Note that the time format string is optional, ie when your time value is already in epoch seconds");
+    formatter.setRequired(true);
+    url.setRequired(true);
     Option verbose = new Option("v", "verbose", false, "Creates a consumer that prints the leaf topic messages to the console");
     verbose.setRequired(false);
     Option duration = new Option("d", "duration", true, "How long to run the program in milliseconds, defaults to (essentially) forever");
@@ -42,11 +55,12 @@ public class Reporter {
     options.addOption(intermediate_topic);
     options.addOption(leaf_topic);
     options.addOption(url);
+    options.addOption(formatter);
     options.addOption(verbose);
     options.addOption(duration);
 
     CommandLineParser parser = new DefaultParser();
-    HelpFormatter formatter = new HelpFormatter();
+    HelpFormatter help = new HelpFormatter();
     CommandLine cmd = null;
 
     try {
@@ -54,7 +68,7 @@ public class Reporter {
     }
     catch (ParseException e) {
       System.out.println(e.getMessage());
-      formatter.printHelp("kafka-reporter", options);
+      help.printHelp("kafka-reporter", options);
       System.exit(1);
     }
     return cmd;
@@ -79,7 +93,7 @@ public class Reporter {
     //takes raw input from tnc and reformat the tnc format data into
     //a key of string type and a value of Point type
     builder.addSource("Source", new StringDeserializer(), new StringDeserializer(), cmd.getOptionValue("root-topic"));
-    builder.addProcessor("Formatter", new KeyedFormattingProcessor(args), "Source");
+    builder.addProcessor("Formatter", new KeyedFormattingProcessor(cmd), "Source");
     builder.addSink("KeyedPointsSink", cmd.getOptionValue("intermediate-topic"), new StringSerializer(), pointSerder.serializer(), "Formatter");
     
     //take batches of points for a given key (uuid) and when some threshold is met

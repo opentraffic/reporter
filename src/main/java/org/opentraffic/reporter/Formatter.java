@@ -30,6 +30,19 @@ public class Formatter {
     floatFormatter = new DecimalFormat("###.######", new DecimalFormatSymbols(Locale.US));
   }
   
+  public static Formatter GetFormatter(String[] args) {
+    //separator, uuid, lat, lon, time, accuracy, date string
+    if(args[0] == "sv")
+      return SVFormatter(args[1], Integer.parseInt(args[2]), Integer.parseInt(args[3]), Integer.parseInt(args[4]),
+          Integer.parseInt(args[5]), Integer.parseInt(args[6]), args.length > 7 ? args[7] : null);
+    //uuid, lat, lon, time, accuracy, date string
+    else if(args[0] == "json")
+      return JSONFormatter(args[1], args[2], args[3], args[4], args[5], args.length > 6 ? args[6] : null);
+    //dont know what this is
+    else
+      throw new RuntimeException("Unsupported raw format parser");
+  }
+
   public static Formatter SVFormatter(String separator, int uuid_index, int lat_index, int lon_index, int time_index, int accuracy_index) {
     return SVFormatter(separator, uuid_index, lat_index, lon_index, time_index, accuracy_index, null);
   }

@@ -11,14 +11,16 @@ services:
     volumes:
       - ${DATAPATH}:/data/valhalla
     environment:
-      - DATASTORE_URL=http://172.17.0.1:8003/store?
+      - TODO_DATASTORE_URL=http://172.17.0.1:8003/store?
 
   reporter-kafka:
     image: opentraffic/reporter:latest
     networks:
       - opentraffic
+    environment:
+      - FORMATTER
     command:
-      bash -c "sleep 30 && /usr/local/bin/reporter-kafka -b 172.17.0.1:9092 -r raw -i formatted -l batched -u http://reporter-py:8002/report? -v"
+      bash -c "echo \"Formatting with $${FORMATTER}\" && sleep 30 && /usr/local/bin/reporter-kafka -b 172.17.0.1:9092 -r raw -i formatted -l batched -f \"$${FORMATTER}\" -u http://reporter-py:8002/report? -v"
 
   zookeeper:
     image: wurstmeister/zookeeper:latest

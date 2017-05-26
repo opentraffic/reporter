@@ -1,5 +1,6 @@
 package org.opentraffic.reporter;
 
+import org.apache.commons.cli.CommandLine;
 import org.apache.kafka.streams.processor.Processor;
 import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.processor.ProcessorSupplier;
@@ -7,9 +8,10 @@ import org.apache.kafka.streams.processor.ProcessorSupplier;
 //here we just take the incoming message, reformat it and key it while doing so
 public class KeyedFormattingProcessor implements ProcessorSupplier<String, String> {
   private Formatter formatter;
-  public KeyedFormattingProcessor(String[] args) {
-    //TODO: actually parse the args and pick the appropriate formatter
-    formatter = Formatter.SVFormatter("\\|", 1, 9, 10, 0, 5, "yyyy-MM-dd HH:mm:ss");
+  public KeyedFormattingProcessor(CommandLine cmd) {
+    String format = cmd.getOptionValue("formatter");
+    String[] params = format.split(",");
+    formatter = Formatter.GetFormatter(params);
   }
   
   @Override
