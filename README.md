@@ -15,11 +15,16 @@ To build/run the [reporter service](https://github.com/opentraffic/reporter) via
 TODO: @gknisely show how to get a bbox and make a tar
 #move your tar to some place
 mv tiles.tar /some/path/to/tiles.tar
-#before we start the reporter you'll need the format of your incoming messages, right now separated value or json
+#before we start the reporter you'll need the format of your incoming messages
+#we specify what formatter we want and its properties with a simple string
+#the first char is the separator to use when parsing the args out of the string
+#the first argument is the type of formatter, right now separated value or json
 #  for separated value if your messages looked like: `2017-01-31 16:00:00|uuid_abcdef|x|x|x|accuracy|x|x|x|lat|lon|x|x|x`
-#  your formatter string will be: `sv,\\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss`
+#  your formatter string will be: `,sv,\\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss`
+#  the arguments to the sv type formatter are: separator regex, uuid column, lat column, lon column, time column, accuracy column and (optional) date format string
 #  for json if your messages looked like: `{"timestamp":1495037969,"id":"uuid_abcdef","accuracy":51.305,"latitude":3.465725,"longitude":-76.5135033}`
-#  your formatter string will be: `json,id,latitude,longitude,timestamp,accuracy`
+#  your formatter string will be: `@json@id@latitude@longitude@timestamp@accuracy`
+#  the arguments to the json type formatter are: uuid key, lat key, lon key, time key, accuracy and (optional) date format string
 #  note the last argument of both is a date string format, if your data is already an epoch timestamp you dont need to provide it
 #TODO: fix the docker-compose.yml to actually supply DATASTORE_URL
 #start up all the containers
@@ -49,10 +54,15 @@ docker network create --driver bridge opentraffic
 #TODO: add -e DATASTORE_URL=http://localhost:8003/store? back in when its ready
 docker run -d --net opentraffic -p 8002 --name reporter-py -v /some/path/to:/data/valhalla reporter:latest
 #before we start the kafka worker you'll need the format of your incoming messages, right now separated value or json
+#we specify what formatter we want and its properties with a simple string
+#the first char is the separator to use when parsing the args out of the string
+#the first argument is the type of formatter, right now separated value or json
 #  for separated value if your messages looked like: `2017-01-31 16:00:00|uuid_abcdef|x|x|x|accuracy|x|x|x|lat|lon|x|x|x`
-#  your formatter string will be: `sv,\\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss`
+#  your formatter string will be: `,sv,\\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss`
+#  the arguments to the sv type formatter are: separator regex, uuid column, lat column, lon column, time column, accuracy column and (optional) date format string
 #  for json if your messages looked like: `{"timestamp":1495037969,"id":"uuid_abcdef","accuracy":51.305,"latitude":3.465725,"longitude":-76.5135033}`
-#  your formatter string will be: `json,id,latitude,longitude,timestamp,accuracy`
+#  your formatter string will be: `@json@id@latitude@longitude@timestamp@accuracy`
+#  the arguments to the json type formatter are: uuid key, lat key, lon key, time key, accuracy and (optional) date format string
 #  note the last argument of both is a date string format, if your data is already an epoch timestamp you dont need to provide it
 #start up just the kafka reporter worker
 docker run -d --net opentraffic --name reporter-kafka reporter:latest \
@@ -80,10 +90,15 @@ valhalla_build_config --mjolnir-tile-extract /some/path/to/tiles.tar
 #Note: PYTHONPATH is only needed if you are building valhalla locally, if you apt-get installed it above you wont need it
 THREAD_POOL_COUNT=1 PYTHONPATH=../../valhalla/valhalla/.libs/ pdb py/reporter_service.py conf.json localhost:8002
 #before we start the kafka worker you'll need the format of your incoming messages, right now separated value or json
+#we specify what formatter we want and its properties with a simple string
+#the first char is the separator to use when parsing the args out of the string
+#the first argument is the type of formatter, right now separated value or json
 #  for separated value if your messages looked like: `2017-01-31 16:00:00|uuid_abcdef|x|x|x|accuracy|x|x|x|lat|lon|x|x|x`
-#  your formatter string will be: `sv,\\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss`
+#  your formatter string will be: `,sv,\\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss`
+#  the arguments to the sv type formatter are: separator regex, uuid column, lat column, lon column, time column, accuracy column and (optional) date format string
 #  for json if your messages looked like: `{"timestamp":1495037969,"id":"uuid_abcdef","accuracy":51.305,"latitude":3.465725,"longitude":-76.5135033}`
-#  your formatter string will be: `json,id,latitude,longitude,timestamp,accuracy`
+#  your formatter string will be: `@json@id@latitude@longitude@timestamp@accuracy`
+#  the arguments to the json type formatter are: uuid key, lat key, lon key, time key, accuracy and (optional) date format string
 #  note the last argument of both is a date string format, if your data is already an epoch timestamp you dont need to provide it
 #build the kafka reporter worker
 sudo apt-get install -y openjdk-8-jdk maven

@@ -30,16 +30,16 @@ public class Reporter {
     leaf_topic.setRequired(true);
     Option url = new Option("u", "reporter-url", true, "The url to send batched/windowed portions of a given keys points to");
     url.setRequired(true);
-    Option formatter = new Option("f", "formatter", true, "The formatter configuration comma separated args for constructing a custom formatter.\n"
+    Option formatter = new Option("f", "formatter", true, "The formatter configuration separated args for constructing a custom formatter.\n"
         + "Separated value and json are currently supported.\n"
         + "To construct a seprated value formatter where the raw messages look like:\n"
         + "  2017-01-31 16:00:00|uuid_abcdef|x|x|x|accuracy|x|x|x|lat|lon|x|x|x\n"
         + "Specify a value of:\n"
-        + "  --formatter \"sv,\\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss\"\n"
+        + "  --formatter \",sv,\\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss\"\n"
         + "To construct a json formatter where the raw messages look like:\n"
         + "  {\"timestamp\":1495037969,\"id\":\"uuid_abcdef\",\"accuracy\":51.305,\"latitude\":3.465725,\"longitude\":-76.5135033}\n"
         + "Specify a value of:\n"
-        + "  --formatter \"json,id,latitude,longitude,timestamp,accuracy\"\n"
+        + "  --formatter \",json,id,latitude,longitude,timestamp,accuracy\"\n"
         + "Note that the time format string is optional, ie when your time value is already in epoch seconds");
     formatter.setRequired(true);
     url.setRequired(true);

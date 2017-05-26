@@ -30,13 +30,16 @@ public class Formatter {
     floatFormatter = new DecimalFormat("###.######", new DecimalFormatSymbols(Locale.US));
   }
   
-  public static Formatter GetFormatter(String[] args) {
+  public static Formatter GetFormatter(String format) {
+    String split_on = format.substring(0,1);
+    format = format.substring(1);
+    String[] args = format.split(split_on);
     //separator, uuid, lat, lon, time, accuracy, date string
-    if(args[0] == "sv")
+    if(args[0].equals("sv"))
       return SVFormatter(args[1], Integer.parseInt(args[2]), Integer.parseInt(args[3]), Integer.parseInt(args[4]),
           Integer.parseInt(args[5]), Integer.parseInt(args[6]), args.length > 7 ? args[7] : null);
     //uuid, lat, lon, time, accuracy, date string
-    else if(args[0] == "json")
+    else if(args[0].equals("json"))
       return JSONFormatter(args[1], args[2], args[3], args[4], args[5], args.length > 6 ? args[6] : null);
     //dont know what this is
     else

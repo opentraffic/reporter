@@ -10,8 +10,7 @@ public class KeyedFormattingProcessor implements ProcessorSupplier<String, Strin
   private Formatter formatter;
   public KeyedFormattingProcessor(CommandLine cmd) {
     String format = cmd.getOptionValue("formatter");
-    String[] params = format.split(",");
-    formatter = Formatter.GetFormatter(params);
+    formatter = Formatter.GetFormatter(format);
   }
   
   @Override
