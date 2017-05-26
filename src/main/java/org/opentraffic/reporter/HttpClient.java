@@ -27,10 +27,8 @@ public final class HttpClient {
       //make the request
       response = client.execute(post);
       HttpEntity response_entity = response.getEntity();
-      if(response.getStatusLine().getStatusCode() == 200) {
-        InputStream stream = response_entity.getContent();
-        v = IOUtils.toString(stream, StandardCharsets.UTF_8);
-      }
+      InputStream stream = response_entity.getContent();
+      v = IOUtils.toString(stream, StandardCharsets.UTF_8);
       //need to "consume" the response
       EntityUtils.consume(response_entity);
     }//swallow anything

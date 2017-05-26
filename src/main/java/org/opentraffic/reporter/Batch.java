@@ -45,8 +45,8 @@ public class Batch {
   
   public String report(String key, String url, int min_dist, int min_size, long min_elapsed) {
     //if it doesnt meet the requirements then bail
-    long elapsed = points.get(points.size() - 1).time - points.get(0).time;
-    if(max_separation < min_dist || points.size() < min_size || elapsed < min_elapsed)
+    if(max_separation < min_dist || points.size() < min_size ||
+        points.get(points.size() - 1).time - points.get(0).time < min_elapsed)
       return null;
     
     //make a post body: uuid json + uuid + trace json + number of points * (single point json) + end of json array and object 

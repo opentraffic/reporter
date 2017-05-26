@@ -148,7 +148,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       #set some basic info
       self.send_header('Access-Control-Allow-Origin','*')
       self.send_header('Content-type', 'application/json;charset=utf-8')
-      self.send_header('Content-length', len(response))
+      self.send_header('Content-length', len(body))
       self.end_headers()
 
       #hand it back
