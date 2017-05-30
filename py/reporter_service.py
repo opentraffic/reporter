@@ -205,6 +205,14 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     if uuid is None:
       return 400, '{"error":"uuid is required"}'
 
+    if trace.get('debug'):
+      try:
+        debug = bool(strtobool(str(trace.get('debug'))))
+      except:
+        debug = False
+    else:
+     debug = False
+
     #one or more points is required
     try:
       trace['trace'][1]
@@ -213,7 +221,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     #possibly report on what we have
     try:
-      return 200, self.report(trace)
+      return 200, self.report(trace, debug)
     except Exception as e:
       return 500, '{"error":"' + str(e) + '"}'
 
