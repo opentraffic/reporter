@@ -21,6 +21,7 @@ import requests
 import valhalla
 import pickle
 import math
+import pdb
 from distutils.util import strtobool
 
 actions = set(['report'])
@@ -111,7 +112,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
   #report some segments to the datastore
   def report(self, trace, debug):
-
+ 
     #ask valhalla to give back OSMLR segments along this trace
     result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
     segments = json.loads(result)
@@ -120,80 +121,82 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #NOTE: no segments means your trace didnt hit any and we are purging it
     shape_used  = len(trace['trace']) if len(segments['segments']) or segments['segments'][-1].get('segment_id') is None or segments['segments'][-1]['length'] < 0 else segments['segments'][-1] ['begin_shape_index']
 
-    if debug == True:
-      #Compute values to send to the datastore: start time for a segment
-      #next segment (if any), start time at the next segment (end time of
-      #segment if no next segment.
-      segments['mode'] = 'auto'
-      segments['provider'] = thread_local.provider
-      prior_segment_id = 0
-      for seg in segments['segments']:
-        segment_id = seg.get('segment_id')
-        start_time = seg.get('start_time')
-        end_time = seg.get('end_time')
-        internal = seg.get('internal')
-        length = seg.get('length')
+ 
+    #Compute values to send to the datastore: start time for a segment
+    #next segment (if any), start time at the next segment (end time of
+    #segment if no next segment.
+    segments['mode'] = 'auto'
+    segments['provider'] = thread_local.provider
+    prior_segment_id = 0
+    reports = {'reports':[]}
+    for seg in segments['segments']:
+      segment_id = seg.get('segment_id')
+      start_time = seg.get('start_time')
+      end_time = seg.get('end_time')
+      internal = seg.get('internal')
+      length = seg.get('length')
 
-        #length = -1 means this is a partial OSMLR segment match
-        #internal means the segment is an internal intersection, turn channel, roundabout
+      #length = -1 means this is a partial OSMLR segment match
+      #internal means the segment is an internal intersection, turn channel, roundabout
 
-        #check if segment Id is on the local level
-        local_level = True if segment_id != None and (segment_id & 0x3) == 2 else False
+      #check if segment Id is on the local level
+      local_level = True if segment_id != None and (segment_id & 0x3) == 2 else False
 
-        #Output if both this segment and prior segment are complete
-        if (segment_id != None and length > 0 and prior_segment_id != None and prior_length > 0):
-          #Conditonally output prior segments on local level
-          if prior_local_level != None:
-            if thread_local.local_reporting == True:
-              #Add segment (but empty next segment)
-              curr_seg = prior_segment_id
-              next_seg = 0
-              length = prior_length
-              t0 = prior_start_time
-              t1 = prior_end_time
-              #TODO create output object...
-              datastore_json = json.dumps(segments, separators=(',', ':'))
+      #Output if both this segment and prior segment are complete
+      if (segment_id != None and length > 0 and prior_segment_id != None and prior_length > 0):
+        #Conditonally output prior segments on local level
+        if prior_local_level != None:
+          if thread_local.local_reporting == True:
+            #Add segment (but empty next segment)
+            report = dict()
+            report['id'] = prior_segment_id
+            report['next_id'] = 0
+            report['t0'] = prior_start_time
+            report['t1']= prior_end_time
+            report['length'] = prior_length
+            reports['reports'].append(report)
 
-          else:
-            #Add the prior segment. Next segment is set to empty if transition onto local level
-            curr_seg = prior_segment_id
-            next_seg = segment_id if local_level == False else 0
-            length = prior_length
-            t0 = prior_start_time
-            t1 = start_time if local_level == False else prior_end_time
-
-        #Save state for next segment.
-        if internal != None:
-          #Do not replace information on prior segment, except to mark the prior as internal
-          prior_internal = internal
         else:
-          prior_segment_id = segment_id
-          prior_start_time = start_time
-          prior_end_time = end_time
-          prior_internal = internal
-          prior_length = length
-          prior_local_level = local_level
+          #Add the prior segment. Next segment is set to empty if transition onto local level
+          report = dict()
+          report['id'] = prior_segment_id
+          report['next_id'] = segment_id if local_level == False else 0
+          report['t0'] = prior_start_time
+          report['t1']= start_time if local_level == False else prior_end_time
+          report['length'] = prior_length
+          reports['reports'].append(report)
 
-      #Now we will send the whole segments on to the datastore
-      segments_json = json.dumps(segments, separators=(',', ':'))
-      if os.environ.get('DATASTORE_URL') and len(segments['segments']):
-        response = requests.post(os.environ['DATASTORE_URL'], segments_json)
+      #Save state for next segment.
+      if internal != None:
+        #Do not replace information on prior segment, except to mark the prior as internal
+        prior_internal = internal
+      else:
+        prior_segment_id = segment_id
+        prior_start_time = start_time
+        prior_end_time = end_time
+        prior_internal = internal
+        prior_length = length
+        prior_local_level = local_level
+
+    datastore_out = dict()
+    datastore_out['mode'] = 'auto'
+    datastore_out['provider'] = thread_local.provider
+    datastore_out.append(reports)
+    datastore_json = json.dumps(datastore_out, separators=(',', ':'))
+
+    #Now we will send the whole segments on to the datastore
+    if debug == False:
+      if os.environ.get('DATASTORE_URL') and len(reports):
+        response = requests.post(os.environ['DATASTORE_URL'], datastore_json)
         if response.status_code != 200:
           raise Exception(response.text)
 
-    else:
-      #Now we will send the whole segments on to the datastore
-      segments_json = json.dumps(segments, separators=(',', ':'))
-      if os.environ.get('DATASTORE_URL') and len(segments['segments']):
-        response = requests.post(os.environ['DATASTORE_URL'], segments_json)
-        if response.status_code != 200:
-          raise Exception(response.text)
-
-    return shape_used, segments_json, datastore_json
+    return shape_used, result, datastore_json
 
 
   #parse the request because we dont get this for free!
   def handle_request(self, post):
+    pdb.set_trace()
     #get the trace data
     try:
       trace = self.parse_trace(post)
