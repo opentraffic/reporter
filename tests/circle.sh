@@ -11,74 +11,91 @@ echo "Sourcing env from ./tests/env.sh..."
 echo "Downloading test data..."
 aws s3 cp --recursive s3://circleci_reporter valhalla_data
 
-# start the containers
+# for now we have an echo server in place of the real data store
+# TODO: start the real data store container
 #
-echo "Starting the postgres container..."
+#echo "Starting the datastore..."
+
+# so we dont need to link containers
+#
+if [ $(docker network ls --filter name=opentraffic -q | wc -l) -eq 0 ]; then
+  echo "Creating opentraffic bridge network..."
+  docker network create --driver bridge opentraffic
+fi
+
+# start the python segment matcher
+#
+echo "Starting the python reporter container..."
 docker run \
   -d \
-  --name datastore-postgres \
-  -e "POSTGRES_USER=${postgres_user}" \
-  -e "POSTGRES_PASSWORD=${postgres_password}" \
-  -e "POSTGRES_DB=${postgres_db}" \
-  postgres:9.6.1
-
-echo "Sleeping to allow creation of database..."
-sleep 5
-
-echo "Starting the datastore container..."
-docker run \
-  -d \
-  -p ${datastore_port}:${datastore_port} \
-  -e "POSTGRES_USER=${postgres_user}" \
-  -e "POSTGRES_PASSWORD=${postgres_password}" \
-  -e "POSTGRES_DB=${postgres_db}" \
-  -e 'POSTGRES_HOST=postgres' \
-  --name datastore \
-  --link datastore-postgres:postgres \
-  opentraffic/datastore:latest
-
-
-echo "Starting the reporter container..."
-docker run \
-  -d \
+  --net opentraffic \
   -p ${reporter_port}:${reporter_port} \
-  -e "DATASTORE_URL=http://datastore:${datastore_port}/store?" \
-  --name reporter \
-  --link datastore:datastore \
+  -e "TODO_DATASTORE_URL=http://localhost:${datastore_port}/store?" \
+  --name reporter-py \
   -v ${PWD}/${valhalla_data_dir}:/data/valhalla \
   reporter:latest
 
-sleep 3
-
-# generate some test json data with the csv formatter,
-#   drop it in the bind mount so we can access it from
-#   outside the container in the next test.
+# start zookeeper
 #
-echo "Generating reporter request data with the csv formatter..."
-sudo lxc-attach \
-  -n "$(docker inspect --format "{{.Id}}" reporter)" -- \
-  bash -c "/reporter/csv_formatter.py /data/valhalla/grab.csv >/data/valhalla/reporter_requests.json"
+echo "Starting zookeeper..."
+docker run \
+  -d \
+  --net opentraffic \
+  -p ${zookeeper_port}:${zookeeper_port} \
+  --name zookeeper \
+  wurstmeister/zookeeper:latest
 
-# basic json validation
+# start kafka
 #
-echo "Validating csv formatter output is valid json..."
-jq "." ${PWD}/${valhalla_data_dir}/reporter_requests.json >/dev/null
+echo "Starting kafka..."
+docker run \
+  -d \
+  --net opentraffic \
+  -p ${kafka_port}:${kafka_port} \
+  -e "KAFKA_ADVERTISED_HOST_NAME=${docker_ip}" \
+  -e "KAFKA_ADVERTISED_PORT=${kafka_port}" \
+  -e "KAFKA_ZOOKEEPER_CONNECT=zookeeper:${zookeeper_port}" \
+  -e "KAFKA_CREATE_TOPICS=raw:1:1,formatted:1:1,batched:4:1" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  --name kafka \
+  wurstmeister/kafka:latest
 
-# test the generated data against the service
+# wait for the topics to be created
 #
-echo "Running test data through the matcher service..."
-cat ${PWD}/${valhalla_data_dir}/reporter_requests.json | \
-  head -50 | \
-    parallel \
-      -j2 \
-      --halt 2 \
-      --progress \
-      curl \
-        --fail \
-        --silent \
-        --max-time 3 \
-        --retry 3 \
-        --retry-delay 3 \
-        --data '{}' localhost:${reporter_port}/report?
+sleep 30
+
+# inject the data into kafka
+#
+{
+  sleep 30 #wait for the kafka worker to connect
+  echo "Producing data to kafka"
+  py/cat_to_kafka.py --bootstrap localhost:9092 --topic raw valhalla_data/*.sv
+} &
+
+# start kafka worker
+#
+echo "Starting kafka reporter..."
+docker run \
+  -t \
+  --net opentraffic \
+  --name reporter-kafka \
+  reporter:latest \
+  /usr/local/bin/reporter-kafka -b ${docker_ip}:${kafka_port} -r raw -i formatted -l batched -f ',sv,\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' -u http://reporter-py:${reporter_port}/report? -d 60000 -v
+
+# done running stuff
+#
+wait
+docker kill $(docker ps -q)
+  
+# test that we got data through to the echo server
+# TODO: this is lame do something more meaningful
+#
+echo "Checking results..."
+reporter=$(docker ps -a | grep -F reporter-py | awk '{print $1}')
+posts=$(docker logs ${reporter} 2>&1 | awk '{print $6}' | grep -Fc POST)
+oks=$(docker logs ${reporter} 2>&1 | awk '{print $9}' | grep -Fc 200)
+if [[ ${oks} == 0 ]] || [[ ${posts} != ${oks} ]]; then
+  exit 1
+fi
 
 echo "Done!"

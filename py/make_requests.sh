@@ -10,7 +10,7 @@ set -e
 
 function usage {
   echo -e "Usage:\n-s s3 bucket url\n-f regex to use with grep to get interesting files\n" 1>&2
-  echo "Example: AWS_DEFAULT_PROFILE=opentraffic $0 -s s3://heaps_of_data/2016_11/ -f 2016_11_01.*gz -b ${DOCKER_HOST}:9092 -t mytopic" 1>&2
+  echo "Example: AWS_DEFAULT_PROFILE=opentraffic $0 -s s3://heaps_of_data/2016_11/ -f 2016_11_01.*gz -b 172.17.0.1:9092 -t mytopic" 1>&2
   echo "Note: bucket listing is not recursive" 1>&2
   echo "Note: data is pipe delimited: date|id|x|x|x|x|x|x|x|lat|lon|x|x with date format: %Y-%m-%d %H:%M:%S" 1>&2
   exit 1
@@ -22,7 +22,7 @@ while getopts ":s:f:b:t:" opt; do
     ;;
     f) file_re="${OPTARG}"
     ;;
-    b) brokers="${OPTARG}"
+    b) bootstrap="${OPTARG}"
     ;;
     t) topic="${OPTARG}"
     ;;
@@ -40,12 +40,11 @@ echo "Retrieving file list from s3"
 files=$(aws s3 ls ${s3_dir} | awk '{print $4}' | grep -E ${file_re} | tr '\n' ' ')
 echo "Processing $(echo ${files} | tr ' ' '\n' | wc -l) files"
 
-
 for file in ${files}; do
   #download in the foreground
   echo "Retrieving ${file} from s3" && aws s3 cp ${s3_dir}${file} . &> /dev/null
   #send to kafka producer
-  zcat ${file} | ./to_kafka_producer.py --brokers ${brokers} --topic ${topic} -
+  zcat ${file} | ./cat_to_kafka.py --bootstrap ${bootstrap} --topic ${topic} -
   #done with this
   echo "Finished POST'ing ${file}" && rm -f ${file}
 done

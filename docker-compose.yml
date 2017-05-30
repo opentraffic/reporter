@@ -1,7 +1,8 @@
 version: '2'
 
 services:
-  reporter:
+
+  reporter-py:
     image: opentraffic/reporter:latest
     networks:
       - opentraffic
@@ -10,7 +11,38 @@ services:
     volumes:
       - ${DATAPATH}:/data/valhalla
     environment:
-      - DATASTORE_URL=http://172.17.0.1:8003/store?
+      - TODO_DATASTORE_URL=http://172.17.0.1:8003/store?
+
+  reporter-kafka:
+    image: opentraffic/reporter:latest
+    networks:
+      - opentraffic
+    environment:
+      - FORMATTER
+    command:
+      bash -c "echo \"Formatting with $${FORMATTER}\" && sleep 30 && /usr/local/bin/reporter-kafka -b 172.17.0.1:9092 -r raw -i formatted -l batched -f \"$${FORMATTER}\" -u http://reporter-py:8002/report? -v"
+
+  zookeeper:
+    image: wurstmeister/zookeeper:latest
+    networks:
+      - opentraffic
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: wurstmeister/kafka:latest
+    networks:
+      - opentraffic
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: 172.17.0.1
+      KAFKA_ADVERTISED_PORT: 9092
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      #these topics map directly to those in the kafka application
+      KAFKA_CREATE_TOPICS: "raw:1:1,formatted:1:1,batched:4:1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 networks:
   opentraffic:
