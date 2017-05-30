@@ -97,7 +97,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
 
   #report some segments to the datastore
-  def report(self, trace):
+  def report(self, trace, debug):
     if os.environ.get('LOCAL_REPORTING'):
       local_reporting = bool(strtobool(str(os.environ.get('LOCAL_REPORTING'))))
     else:
@@ -107,18 +107,80 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
     segments = json.loads(result)
 
-    #clean out the unuseful partial segments
-    segments['mode'] = 'auto'
-    segments['provider'] = os.environ.get('PROVIDER', '')
+    #remember how much shape was used
+    #NOTE: no segments means your trace didnt hit any and we are purging it
+    shape_used  = len(trace['trace']) if len(segments['segments']) or segments['segments'][-1].get('segment_id') is None or segments['segments'][-1]['length'] < 0 else segments['segments'][-1] ['begin_shape_index']
 
-    #Now we will send the whole segments on to the datastore
-    segments_json = json.dumps(segments, separators=(',', ':'))
-    if os.environ.get('DATASTORE_URL') and len(segments['segments']):
-      response = requests.post(os.environ['DATASTORE_URL'], segments_json)
-      if response.status_code != 200:
-        raise Exception(response.text)
+    if debug == True:
+      #Compute values to send to the datastore: start time for a segment
+      #next segment (if any), start time at the next segment (end time of
+      #segment if no next segment.
+      segments['mode'] = 'auto'
+      segments['provider'] = os.environ.get('PROVIDER', '')
+      prior_segment_id = 0
+      for seg in segments['segments']:
+        segment_id = seg.get('segment_id')
+        start_time = seg.get('start_time')
+        end_time = seg.get('end_time])
+        internal = seg.get('internal')
+        length = seg.get('length')
 
-    return segments_json
+        #length = -1 means this is a partial OSMLR segment match
+        #internal means the segment is an internal intersection, turn channel, roundabout
+
+        #check if segment Id is on the local level
+        local_level = True if segment_id != None and (segment_id & 0x3) == 2 else False
+
+        #Output if both this segment and prior segment are complete
+        if (segment_id != None and length > 0 and prior_segment_id != None and prior_length > 0):
+          #Conditonally output prior segments on local level
+          if prior_local_level != None:
+            if local_reporting == True:
+              #Add segment (but empty next segment)
+              curr_seg = prior_segment_id
+              next_seg = 0
+              length = prior_length
+              t0 = prior_start_time
+              t1 = prior_end_time
+              #TODO create output object...
+              datastore_json = json.dumps(segments, separators=(',', ':'))
+
+          else:
+            #Add the prior segment. Next segment is set to empty if transition onto local level
+            curr_seg = prior_segment_id
+            next_seg = segment_id if local_level == False else 0
+            length = prior_length
+            t0 = prior_start_time
+            t1 = start_time if local_level == False else prior_end_time
+
+        #Save state for next segment.
+        if internal != None:
+          #Do not replace information on prior segment, except to mark the prior as internal
+          prior_internal = internal
+        else:
+          prior_segment_id = segment_id
+          prior_start_time = start_time
+          prior_end_time = end_time
+          prior_internal = internal
+          prior_length = length
+          prior_local_level = local_level
+
+      #Now we will send the whole segments on to the datastore
+      segments_json = json.dumps(segments, separators=(',', ':'))
+      if os.environ.get('DATASTORE_URL') and len(segments['segments']):
+        response = requests.post(os.environ['DATASTORE_URL'], segments_json)
+        if response.status_code != 200:
+          raise Exception(response.text)
+
+    else:
+      #Now we will send the whole segments on to the datastore
+      segments_json = json.dumps(segments, separators=(',', ':'))
+      if os.environ.get('DATASTORE_URL') and len(segments['segments']):
+        response = requests.post(os.environ['DATASTORE_URL'], segments_json)
+        if response.status_code != 200:
+          raise Exception(response.text)
+
+    return shape_used, segments_json, datastore_json
 
 
   #parse the request because we dont get this for free!
