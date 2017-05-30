@@ -191,11 +191,9 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         response = requests.post(os.environ['DATASTORE_URL'], datastore_json)
         if response.status_code != 200:
           raise Exception(response.text)
-      return 200, shape_used 
+      return shape_used
     else:
-      return 200, datastore_json
-    #return shape_used, result, datastore_json
-
+      return shape_used, result, datastore_json
 
   #parse the request because we dont get this for free!
   def handle_request(self, post):
