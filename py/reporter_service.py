@@ -127,8 +127,11 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #segment if no next segment.
     segments['mode'] = 'auto'
     segments['provider'] = thread_local.provider
-    prior_segment_id = 0
-    reports = {'reports':[]}
+    prior_segment_id = None
+    datastore_out = dict()
+    datastore_out['mode'] = 'auto'
+    datastore_out['provider'] = thread_local.provider
+    datastore_out['reports'] = []
     for seg in segments['segments']:
       segment_id = seg.get('segment_id')
       start_time = seg.get('start_time')
@@ -154,7 +157,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
             report['t0'] = prior_start_time
             report['t1']= prior_end_time
             report['length'] = prior_length
-            reports['reports'].append(report)
+            datastore_out['reports'].append(report)
 
         else:
           #Add the prior segment. Next segment is set to empty if transition onto local level
@@ -164,7 +167,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
           report['t0'] = prior_start_time
           report['t1']= start_time if local_level == False else prior_end_time
           report['length'] = prior_length
-          reports['reports'].append(report)
+          datastore_out['reports'].append(report)
 
       #Save state for next segment.
       if internal != None:
@@ -178,12 +181,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         prior_length = length
         prior_local_level = local_level
 
-    datastore_out = dict()
-    datastore_out['mode'] = 'auto'
-    datastore_out['provider'] = thread_local.provider
-    datastore_out.append(reports)
     datastore_json = json.dumps(datastore_out, separators=(',', ':'))
-
     #Now we will send the whole segments on to the datastore
     if debug == False:
       if os.environ.get('DATASTORE_URL') and len(reports):
