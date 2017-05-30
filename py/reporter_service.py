@@ -21,6 +21,7 @@ import requests
 import valhalla
 import pickle
 import math
+from distutils.util import strtobool
 
 actions = set(['report'])
 
@@ -97,6 +98,11 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
   #report some segments to the datastore
   def report(self, trace):
+    if os.environ.get('LOCAL_REPORTING'):
+      local_reporting = bool(strtobool(str(os.environ.get('LOCAL_REPORTING'))))
+    else:
+      local_reporting = False
+
     #ask valhalla to give back OSMLR segments along this trace
     result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
     segments = json.loads(result)
