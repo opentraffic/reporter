@@ -130,7 +130,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       for seg in segments['segments']:
         segment_id = seg.get('segment_id')
         start_time = seg.get('start_time')
-        end_time = seg.get('end_time])
+        end_time = seg.get('end_time')
         internal = seg.get('internal')
         length = seg.get('length')
 
