@@ -11,6 +11,7 @@ services:
     volumes:
       - ${DATAPATH}:/data/valhalla
     environment:
+      LOCAL_REPORTING: False
       - TODO_DATASTORE_URL=http://172.17.0.1:8003/store?
 
   reporter-kafka:
