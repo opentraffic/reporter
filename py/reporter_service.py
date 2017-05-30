@@ -183,17 +183,20 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     if not datastore_out['reports']:
       datastore_out.pop('reports')
-    datastore_json = json.dumps(datastore_out, separators=(',', ':'))
-
+    data = dict()
     #Now we will send the whole segments on to the datastore
     if debug == False:
       if os.environ.get('DATASTORE_URL') and len(reports):
         response = requests.post(os.environ['DATASTORE_URL'], datastore_json)
         if response.status_code != 200:
           raise Exception(response.text)
-      return shape_used
+      data['shape_used'] = shape_used
+      return json.dumps(data, separators=(',', ':'))
     else:
-      return shape_used, result, datastore_json
+      data['shape_used'] = shape_used
+      data['segment_matcher'] = result
+      data['datastore'] = datastore_out
+      return json.dumps(data, separators=(',', ':'))
 
   #parse the request because we dont get this for free!
   def handle_request(self, post):
