@@ -51,6 +51,19 @@ class ThreadPoolMixIn(ThreadingMixIn):
   def make_thread_locals(self):
     setattr(thread_local, 'segment_matcher', valhalla.SegmentMatcher())
 
+    local_reporting = False
+    if os.environ.get('LOCAL_REPORTING'):
+      local_reporting = bool(strtobool(str(os.environ.get('LOCAL_REPORTING'))))
+    setattr(thread_local, 'local_reporting', local_reporting)
+
+    threshold_sec = None
+    if os.environ.get('THRESHOLD_SEC'):
+      threshold_sec = bool(strtobool(str(os.environ.get('THRESHOLD_SEC'))))
+    setattr(thread_local, 'threshold_sec', threshold_sec)
+
+    provider = os.environ.get('PROVIDER', '')
+    setattr(thread_local, 'provider', provider)
+
   def process_request_thread(self):
     self.make_thread_locals()
     while True:
@@ -98,10 +111,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
   #report some segments to the datastore
   def report(self, trace, debug):
-    if os.environ.get('LOCAL_REPORTING'):
-      local_reporting = bool(strtobool(str(os.environ.get('LOCAL_REPORTING'))))
-    else:
-      local_reporting = False
 
     #ask valhalla to give back OSMLR segments along this trace
     result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
@@ -116,7 +125,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       #next segment (if any), start time at the next segment (end time of
       #segment if no next segment.
       segments['mode'] = 'auto'
-      segments['provider'] = os.environ.get('PROVIDER', '')
+      segments['provider'] = thread_local.provider
       prior_segment_id = 0
       for seg in segments['segments']:
         segment_id = seg.get('segment_id')
@@ -135,7 +144,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         if (segment_id != None and length > 0 and prior_segment_id != None and prior_length > 0):
           #Conditonally output prior segments on local level
           if prior_local_level != None:
-            if local_reporting == True:
+            if thread_local.local_reporting == True:
               #Add segment (but empty next segment)
               curr_seg = prior_segment_id
               next_seg = 0
