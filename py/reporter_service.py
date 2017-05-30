@@ -196,7 +196,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
   #parse the request because we dont get this for free!
   def handle_request(self, post):
-    pdb.set_trace()
     #get the trace data
     try:
       trace = self.parse_trace(post)
