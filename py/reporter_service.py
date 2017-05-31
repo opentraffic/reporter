@@ -189,7 +189,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         response = requests.post(os.environ['DATASTORE_URL'], datastore_json)
         if response.status_code != 200:
           raise Exception(response.text)
-      data['shape_used'] = shape_used
       
     return json.dumps(data, separators=(',', ':'))
     
