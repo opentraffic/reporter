@@ -23,10 +23,12 @@ deployment:
     branch: master
     commands:
       - ecs-deploy/bin/deploy.sh --env prod --region us-east-1 --project reporter
+      - ecs-deploy/bin/deploy.sh --env prod --region us-east-1 --project reporter-kafka --cluster reporter-prod
       - hub-deploy/bin/deploy.sh reporter
 
   dev:
     branch: dev
     commands:
       - ecs-deploy/bin/deploy.sh --env dev --region us-east-1 --project reporter
+      - ecs-deploy/bin/deploy.sh --env dev --region us-east-1 --project reporter-kafka --cluster reporter-dev
       - ./tests/live.sh "https://reporter-dev.opentraffic.io/report?"
