@@ -4,11 +4,14 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.kafka.streams.processor.Processor;
 import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.processor.ProcessorSupplier;
+import org.apache.log4j.Logger;
 
 //here we just take the incoming message, reformat it and key it while doing so
 public class KeyedFormattingProcessor implements ProcessorSupplier<String, String> {
+  private final static Logger logger = Logger.getLogger(KeyedFormattingProcessor.class);
   private Formatter formatter;
   public KeyedFormattingProcessor(CommandLine cmd) {
+    logger.debug("Instantiating keyed formatting processor");
     String format = cmd.getOptionValue("formatter");
     formatter = Formatter.GetFormatter(format);
   }
@@ -29,8 +32,7 @@ public class KeyedFormattingProcessor implements ProcessorSupplier<String, Strin
           Pair<String, Point> kv = formatter.format(value);
           context.forward(kv.first, kv.second);
         } catch (Exception e) {
-          // swallow all bad input
-          // TODO: log it
+          logger.error("Could not key and format using, key = " + key + ", value = " + value);
         }
         context.commit();
       }

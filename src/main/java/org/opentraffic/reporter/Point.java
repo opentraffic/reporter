@@ -9,12 +9,14 @@ import java.util.Map;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serializer;
+import org.apache.log4j.Logger;
 
 public class Point {
   float lat, lon;
   int accuracy;
   long time;
   public static final int SIZE = 4 + 4 + 4 + 8; //keep this up to date
+  private final static Logger logger = Logger.getLogger(Point.class);
   
   public Point(float lat, float lon, int accuracy, long time) {
     this.lat = lat;

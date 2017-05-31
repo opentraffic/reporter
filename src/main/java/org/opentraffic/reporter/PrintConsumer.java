@@ -12,18 +12,21 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.log4j.Logger;
 
 public class PrintConsumer implements Runnable {
   private final Consumer<String, String> consumer;
   private final Properties properties = new Properties();
   private final List<String> topics;
+  
+  private final static Logger logger = Logger.getLogger(PrintConsumer.class);
 
   public PrintConsumer(CommandLine cmd) {
     //let the user supply a client id so it has a known name if something goes wrong
     String client_id = cmd.getOptionValue("verbose");
     if(client_id == null)
       client_id = UUID.randomUUID().toString();
-    System.out.println("I am client: " + client_id);
+    logger.info("Starting print consumer " + client_id);
     //set set the group always the same to pick up where we left off
     properties.put(ConsumerConfig.GROUP_ID_CONFIG, "verbose_reporters");
     properties.put(ConsumerConfig.CLIENT_ID_CONFIG, client_id); 
