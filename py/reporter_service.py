@@ -207,7 +207,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     if trace.get('debug'):
       try:
-        pdb.set_trace()
         debug = bool(strtobool(str(trace.get('debug'))))
       except:
         debug = False
