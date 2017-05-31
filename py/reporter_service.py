@@ -21,7 +21,6 @@ import requests
 import valhalla
 import pickle
 import math
-import pdb
 from distutils.util import strtobool
 
 actions = set(['report'])
