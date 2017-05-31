@@ -13,6 +13,7 @@ import org.apache.kafka.streams.processor.StateStoreSupplier;
 import org.apache.kafka.streams.state.KeyValueIterator;
 import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.Stores;
+import org.apache.log4j.Logger;
 
 //here we just take the incoming message, reformat it and key it while doing so
 public class BatchingProcessor implements ProcessorSupplier<String, Point> {
@@ -23,6 +24,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
   }
   
   //TODO: get these magic constants from arguments
+  private final static Logger logger = Logger.getLogger(BatchingProcessor.class);
   private final long REPORT_TIME = 60;   //seconds
   private final int REPORT_COUNT = 10;   //number of points
   private final int REPORT_DIST = 500;   //meters
@@ -30,6 +32,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
   private final String url;
 
   public BatchingProcessor(CommandLine cmd) {
+    logger.debug("Instantiating batching processor");
     url = cmd.getOptionValue("reporter-url");
   }
   
@@ -57,9 +60,10 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         
         //get this batch out of storage and update it
         Batch batch = store.delete(key);
-        if(batch == null)
+        if(batch == null) {
+          logger.debug("Starting new batch for " + key);
           batch = new Batch(point);
-        //we have more than one point now
+        }//we have more than one point now
         else {
           batch.update(point);
           String result = batch.report(key, url, REPORT_DIST, REPORT_COUNT, REPORT_TIME);

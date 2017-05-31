@@ -104,7 +104,7 @@ THREAD_POOL_COUNT=1 PYTHONPATH=../../valhalla/valhalla/.libs/ pdb py/reporter_se
 sudo apt-get install -y openjdk-8-jdk maven
 mvn clean package
 #start up just the kafka reporter worker
-target/reporter-kafka -b YOUR_KAFKA_BOOTSTRAP_SERVER_AND_PORT -r raw -i formatted -l batched -f 'sv,\\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' -u http://localhost:8002/report? -v
+target/reporter-kafka -b YOUR_KAFKA_BOOTSTRAP_SERVER_AND_PORT -r raw -i formatted -l batched -f 'sv,\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' -u http://localhost:8002/report? -v
 #if you really want to debug, simply import the maven project into eclipse, make a new debug configureation, and add the arguments above to the arguments tab
 #now you can set breakpoints etc and walk through the code in eclipse
 ```
@@ -115,9 +115,9 @@ When debugging, if you didnt already have a kafka stream handy to suck messages 
 #need a bridged docker network so zookeeper and kafka can see eachother
 docker network create --driver bridge opentraffic
 #start zookeeper
-docker run -d --net opentraffic -p 2181 --name zookeeper wurstmeister/zookeeper:latest
+docker run -d --net opentraffic -p 2181:2181 --name zookeeper wurstmeister/zookeeper:latest
 #start kafka
-docker run -d --net opentraffic -p 9092 -e "KAFKA_ADVERTISED_HOST_NAME=localhost" -e "KAFKA_ADVERTISED_PORT=9092" -e "KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181" \
+docker run -d --net opentraffic -p 9092:9092 -e "KAFKA_ADVERTISED_HOST_NAME=localhost" -e "KAFKA_ADVERTISED_PORT=9092" -e "KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181" \
   -e "KAFKA_CREATE_TOPICS=raw:1:1,formatted:1:1,batched:4:1" -v /var/run/docker.sock:/var/run/docker.sock --name kafka wurstmeister/kafka:latest
 #shovel messages into kafka from your local data source
 cat YOUR_FLAT_FILE | py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 -
