@@ -180,6 +180,9 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     if not datastore_out['reports']:
       datastore_out.pop('reports')
     data = dict()
+    data['shape_used'] = shape_used
+    data['segment_matcher'] = segments
+    data['datastore'] = datastore_out
     #Now we will send the whole segments on to the datastore
     if debug == False:
       if os.environ.get('DATASTORE_URL') and len(reports):
@@ -187,14 +190,9 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         if response.status_code != 200:
           raise Exception(response.text)
       data['shape_used'] = shape_used
-      return json.dumps(data, separators=(',', ':'))
-    #if debug, we want to output everything and not send to datastore
-    else:
-      data['shape_used'] = shape_used
-      data['segment_matcher'] = segments
-      data['datastore'] = datastore_out
-      return json.dumps(data, separators=(',', ':'))
-
+      
+    return json.dumps(data, separators=(',', ':'))
+    
   #parse the request because we dont get this for free!
   def handle_request(self, post):
     #get the trace data
@@ -210,6 +208,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     if trace.get('debug'):
       try:
+        pdb.set_trace()
         debug = bool(strtobool(str(trace.get('debug'))))
       except:
         debug = False
