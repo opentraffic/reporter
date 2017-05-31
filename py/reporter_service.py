@@ -21,7 +21,6 @@ import requests
 import valhalla
 import pickle
 import math
-import pdb
 from distutils.util import strtobool
 
 actions = set(['report'])
@@ -121,10 +120,8 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #NOTE: no segments means your trace didnt hit any and we are purging it
     shape_used  = len(trace['trace']) if len(segments['segments']) or segments['segments'][-1].get('segment_id') is None or segments['segments'][-1]['length'] < 0 else segments['segments'][-1] ['begin_shape_index']
 
- 
     #Compute values to send to the datastore: start time for a segment
-    #next segment (if any), start time at the next segment (end time of
-    #segment if no next segment.
+    #next segment (if any), start time at the next segment (end time of segment if no next segment)
     segments['mode'] = 'auto'
     segments['provider'] = thread_local.provider
     prior_segment_id = None
@@ -132,6 +129,9 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     datastore_out['mode'] = 'auto'
     datastore_out['provider'] = thread_local.provider
     datastore_out['reports'] = []
+
+    #length = -1 means this is a partial OSMLR segment match
+    #internal means the segment is an internal intersection, turn channel, roundabout
     for seg in segments['segments']:
       segment_id = seg.get('segment_id')
       start_time = seg.get('start_time')
@@ -139,15 +139,12 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       internal = seg.get('internal')
       length = seg.get('length')
 
-      #length = -1 means this is a partial OSMLR segment match
-      #internal means the segment is an internal intersection, turn channel, roundabout
-
       #check if segment Id is on the local level
       local_level = True if segment_id != None and (segment_id & 0x3) == 2 else False
 
       #Output if both this segment and prior segment are complete
       if (segment_id != None and length > 0 and prior_segment_id != None and prior_length > 0):
-        #Conditonally output prior segments on local level
+        #Conditionally output prior segments on local level
         if prior_local_level != None:
           if thread_local.local_reporting == True:
             #Add segment (but empty next segment)
@@ -158,7 +155,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
             report['t1']= prior_end_time
             report['length'] = prior_length
             datastore_out['reports'].append(report)
-
         else:
           #Add the prior segment. Next segment is set to empty if transition onto local level
           report = dict()
@@ -192,6 +188,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
           raise Exception(response.text)
       data['shape_used'] = shape_used
       return json.dumps(data, separators=(',', ':'))
+    #if debug, we want to output everything and not send to datastore
     else:
       data['shape_used'] = shape_used
       data['segment_matcher'] = segments
