@@ -194,7 +194,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       return json.dumps(data, separators=(',', ':'))
     else:
       data['shape_used'] = shape_used
-      data['segment_matcher'] = result
+      data['segment_matcher'] = segments
       data['datastore'] = datastore_out
       return json.dumps(data, separators=(',', ':'))
 
