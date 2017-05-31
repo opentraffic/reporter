@@ -31,6 +31,7 @@ public class Formatter {
   }
   
   public static Formatter GetFormatter(String format) {
+    System.out.println("Formatting with: " + format);    
     String split_on = format.substring(0,1);
     format = format.substring(1);
     String[] args = format.split(split_on);
