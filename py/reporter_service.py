@@ -21,7 +21,6 @@ import requests
 import valhalla
 import pickle
 import math
-import pdb
 from distutils.util import strtobool
 
 actions = set(['report'])
@@ -126,10 +125,8 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #NOTE: no segments means your trace didnt hit any and we are purging it
     shape_used  = len(trace['trace']) if len(segments['segments']) or segments['segments'][-1].get('segment_id') is None or segments['segments'][-1]['length'] < 0 else segments['segments'][-1] ['begin_shape_index']
 
- 
     #Compute values to send to the datastore: start time for a segment
-    #next segment (if any), start time at the next segment (end time of
-    #segment if no next segment.
+    #next segment (if any), start time at the next segment (end time of segment if no next segment)
     segments['mode'] = 'auto'
     segments['provider'] = thread_local.provider
     prior_segment_id = None
@@ -138,15 +135,15 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     datastore_out['mode'] = 'auto'
     datastore_out['provider'] = thread_local.provider
     datastore_out['reports'] = []
+
+    #length = -1 means this is a partial OSMLR segment match
+    #internal means the segment is an internal intersection, turn channel, roundabout
     for seg in segments['segments']:
       segment_id = seg.get('segment_id')
       start_time = seg.get('start_time')
       end_time = seg.get('end_time')
       internal = seg.get('internal')
       length = seg.get('length')
-
-      #length = -1 means this is a partial OSMLR segment match
-      #internal means the segment is an internal intersection, turn channel, roundabout
 
       #check if segment Id is on the local level
       level = (segment_id & 0x7) if segment_id != None else -1
@@ -181,15 +178,15 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     if not datastore_out['reports']:
       datastore_out.pop('reports')
     data = dict()
+    data['shape_used'] = shape_used
+    data['segment_matcher'] = segments
+    data['datastore'] = datastore_out
     #Now we will send the whole segments on to the datastore
     if debug == False:
       if os.environ.get('DATASTORE_URL') and len(reports):
         response = requests.post(os.environ['DATASTORE_URL'], datastore_json)
         if response.status_code != 200:
-          raise Exception(response.text)
-    data['shape_used'] = shape_used
-    data['segment_matcher'] = segments
-    data['datastore'] = datastore_out
+          raise Exception(response.text) 
     return json.dumps(data, separators=(',', ':'))
 
   #parse the request because we dont get this for free!
