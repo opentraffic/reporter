@@ -123,7 +123,9 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     #remember how much shape was used
     #NOTE: no segments means your trace didnt hit any and we are purging it
-    shape_used  = len(trace['trace']) if len(segments['segments']) or segments['segments'][-1].get('segment_id') is None or segments['segments'][-1]['length'] < 0 else segments['segments'][-1] ['begin_shape_index']
+    shape_used = None
+    if len(segments['segments']):
+      shape_used  = len(trace['trace']) if segments['segments'][-1].get('segment_id') is None or segments['segments'][-1]['length'] < 0 else segments['segments'][-1] ['begin_shape_index']
 
     #Compute values to send to the datastore: start time for a segment
     #next segment (if any), start time at the next segment (end time of segment if no next segment)
@@ -135,7 +137,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     datastore_out['mode'] = 'auto'
     datastore_out['provider'] = thread_local.provider
     datastore_out['reports'] = []
-
     #length = -1 means this is a partial OSMLR segment match
     #internal means the segment is an internal intersection, turn channel, roundabout
     for seg in segments['segments']:
@@ -173,12 +174,13 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         prior_length = length
         prior_level = level
 
-    first_seg = False
+      first_seg = False
 
     if not datastore_out['reports']:
       datastore_out.pop('reports')
     data = dict()
-    data['shape_used'] = shape_used
+    if shape_used is not None:
+      data['shape_used'] = shape_used
     data['segment_matcher'] = segments
     data['datastore'] = datastore_out
     #Now we will send the whole segments on to the datastore
