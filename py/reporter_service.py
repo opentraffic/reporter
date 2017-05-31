@@ -52,10 +52,15 @@ class ThreadPoolMixIn(ThreadingMixIn):
   def make_thread_locals(self):
     setattr(thread_local, 'segment_matcher', valhalla.SegmentMatcher())
 
-    local_reporting = False
-    if os.environ.get('LOCAL_REPORTING'):
-      local_reporting = bool(strtobool(str(os.environ.get('LOCAL_REPORTING'))))
-    setattr(thread_local, 'local_reporting', local_reporting)
+    levels = "0,1"
+    if os.environ.get('REPORT_LEVELS'):
+      levels = os.environ.get('REPORT_LEVELS')
+    setattr(thread_local, 'report_levels', set([ int(i) for i in levels.split(',')]))
+
+    trans_levels = "0,1"
+    if os.environ.get('TRANSITION_LEVELS'):
+      trans_levels = os.environ.get('TRANSITION_LEVELS')
+    setattr(thread_local, 'transition_levels', set([ int(i) for i in trans_levels.split(',')]))
 
     threshold_sec = None
     if os.environ.get('THRESHOLD_SEC'):
@@ -128,6 +133,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     segments['mode'] = 'auto'
     segments['provider'] = thread_local.provider
     prior_segment_id = None
+    first_seg = True
     datastore_out = dict()
     datastore_out['mode'] = 'auto'
     datastore_out['provider'] = thread_local.provider
@@ -143,34 +149,23 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       #internal means the segment is an internal intersection, turn channel, roundabout
 
       #check if segment Id is on the local level
-      local_level = True if segment_id != None and (segment_id & 0x3) == 2 else False
+      level = (segment_id & 0x7) if segment_id != None else -1
 
       #Output if both this segment and prior segment are complete
       if (segment_id != None and length > 0 and prior_segment_id != None and prior_length > 0):
         #Conditonally output prior segments on local level
-        if prior_local_level != None:
-          if thread_local.local_reporting == True:
-            #Add segment (but empty next segment)
-            report = dict()
-            report['id'] = prior_segment_id
-            report['next_id'] = 0
-            report['t0'] = prior_start_time
-            report['t1']= prior_end_time
-            report['length'] = prior_length
-            datastore_out['reports'].append(report)
-
-        else:
+        if prior_level in thread_local.report_levels:
           #Add the prior segment. Next segment is set to empty if transition onto local level
           report = dict()
           report['id'] = prior_segment_id
-          report['next_id'] = segment_id if local_level == False else 0
+          report['next_id'] = segment_id if level in thread_local.transition_levels else None
           report['t0'] = prior_start_time
-          report['t1']= start_time if local_level == False else prior_end_time
+          report['t1']= start_time if level in thread_local.transition_levels else prior_end_time
           report['length'] = prior_length
           datastore_out['reports'].append(report)
 
       #Save state for next segment.
-      if internal != None:
+      if internal == True and first_seg != True:
         #Do not replace information on prior segment, except to mark the prior as internal
         prior_internal = internal
       else:
@@ -179,7 +174,9 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         prior_end_time = end_time
         prior_internal = internal
         prior_length = length
-        prior_local_level = local_level
+        prior_level = level
+
+    first_seg = False
 
     if not datastore_out['reports']:
       datastore_out.pop('reports')
@@ -190,13 +187,10 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         response = requests.post(os.environ['DATASTORE_URL'], datastore_json)
         if response.status_code != 200:
           raise Exception(response.text)
-      data['shape_used'] = shape_used
-      return json.dumps(data, separators=(',', ':'))
-    else:
-      data['shape_used'] = shape_used
-      data['segment_matcher'] = segments
-      data['datastore'] = datastore_out
-      return json.dumps(data, separators=(',', ':'))
+    data['shape_used'] = shape_used
+    data['segment_matcher'] = segments
+    data['datastore'] = datastore_out
+    return json.dumps(data, separators=(',', ':'))
 
   #parse the request because we dont get this for free!
   def handle_request(self, post):
