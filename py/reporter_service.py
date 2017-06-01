@@ -61,7 +61,7 @@ class ThreadPoolMixIn(ThreadingMixIn):
       trans_levels = os.environ.get('TRANSITION_LEVELS')
     setattr(thread_local, 'transition_levels', set([ int(i) for i in trans_levels.split(',')]))
 
-    threshold_sec = None
+    threshold_sec = 15
     if os.environ.get('THRESHOLD_SEC'):
       threshold_sec = bool(strtobool(str(os.environ.get('THRESHOLD_SEC'))))
     setattr(thread_local, 'threshold_sec', threshold_sec)
@@ -121,11 +121,19 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
     segments = json.loads(result)
 
-    #remember how much shape was used
-    #NOTE: no segments means your trace didnt hit any and we are purging it
+    #Get the end time
+    end_time = trace['trace'][len(trace['trace']) - 1]['time']
+
+    #Walk from the last segment until a segment is found where the difference between
+    #the end time and the segment begin time exceeds the threshold
+    last_idx = len(segments['segments'])-1
+    while (last_idx >= 0 and end_time - segments['segments'][last_idx]['start_time'] < thread_local.threshold_sec):
+      last_idx = last_idx-1
+
+    #Trim shape to the beginning of the last segment
     shape_used = None
-    if len(segments['segments']):
-      shape_used  = len(trace['trace']) if segments['segments'][-1].get('segment_id') is None or segments['segments'][-1]['length'] < 0 else segments['segments'][-1] ['begin_shape_index']
+    if (last_idx >= 0):
+      shape_used = segments['segments'][last_idx]['begin_shape_index']
 
     #Compute values to send to the datastore: start time for a segment
     #next segment (if any), start time at the next segment (end time of segment if no next segment)
@@ -139,11 +147,13 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     datastore_out['reports'] = []
     #length = -1 means this is a partial OSMLR segment match
     #internal means the segment is an internal intersection, turn channel, roundabout
-    for seg in segments['segments']:
+    idx = 0
+    while (idx <= last_idx):
+      seg = segments['segments'][idx]
       segment_id = seg.get('segment_id')
       start_time = seg.get('start_time')
       end_time = seg.get('end_time')
-      internal = seg.get('internal')
+      internal = seg.get('internal', False)
       length = seg.get('length')
 
       #check if segment Id is on the local level
@@ -175,6 +185,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         prior_level = level
 
       first_seg = False
+      idx = idx+1
 
     if not datastore_out['reports']:
       datastore_out.pop('reports')
