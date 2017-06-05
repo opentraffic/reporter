@@ -170,7 +170,13 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
           report['t0'] = prior_start_time
           report['t1']= start_time if level in thread_local.transition_levels else prior_end_time
           report['length'] = prior_length
-          datastore_out['reports'].append(report)
+          #Validate - ensure speed is not too high
+          speed = (prior_length / (report['t1'] - report['t0'])) * 3.6
+          if (speed < 200):
+            datastore_out['reports'].append(report)
+          else:
+            #Log this as an error
+            print("Speed exceeds 200kph")
 
       #Save state for next segment.
       if internal == True and first_seg != True:
