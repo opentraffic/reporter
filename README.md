@@ -74,6 +74,8 @@ docker logs --follow ${reporterpy}
 
 #### Debugging the application directly
 
+Say you want to make changes to the reporter, its a real pain to debug this through docker so lets not. Lets run those bits of the code directly:
+
 ```bash
 #get some osmlr enabled routing tiles for your region
 TODO: @gknisely show how to get a bbox and make a tar
