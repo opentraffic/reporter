@@ -52,7 +52,7 @@ mv tiles.tar /some/path/to/tiles.tar
 docker network create --driver bridge opentraffic
 #start up just the reporter python service (does the map matching)
 #TODO: add -e DATASTORE_URL=http://localhost:8003/store? back in when its ready
-docker run -d --net opentraffic -p 8002 --name reporter-py -v /some/path/to:/data/valhalla reporter:latest
+docker run -d --net opentraffic -p 8002 --name reporter-py -v /some/path/to:/data/valhalla opentraffic/reporter:latest
 #before we start the kafka worker you'll need the format of your incoming messages, right now separated value or json
 #we specify what formatter we want and its properties with a simple string
 #the first char is the separator to use when parsing the args out of the string
@@ -65,7 +65,7 @@ docker run -d --net opentraffic -p 8002 --name reporter-py -v /some/path/to:/dat
 #  the arguments to the json type formatter are: uuid key, lat key, lon key, time key, accuracy and (optional) date format string
 #  note the last argument of both is a date string format, if your data is already an epoch timestamp you dont need to provide it
 #start up just the kafka reporter worker
-docker run -d --net opentraffic --name reporter-kafka reporter:latest \
+docker run -d --net opentraffic --name reporter-kafka opentraffic/reporter:latest \
   /usr/local/bin/reporter-kafka -b YOUR_KAFKA_BOOTSTRAP_SERVER_AND_PORT -r raw -i formatted -l batched -f 'sv,\\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' -u http://reporter-py:8002/report? -v
 #tail some docker logs
 reporterpy=$(docker ps -a | grep -F reporter-py | awk '{print $1}')
