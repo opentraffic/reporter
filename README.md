@@ -136,12 +136,12 @@ cat YOUR_FLAT_FILE | py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 -
 ##### `datastore`: contain the mode and list of reports that are sent to the datastore
   * `mode`: a Valhalla mode of travel
   * `reports`: an array of reports that contain:  
-      `id`: segment id
-      `next_id`: next segment id
-      `queue_length`: the distance (meters) from the end of the segment where the speed drops below the threshold
-      `length`: the length of the osmlr segment, which will be -1 if the segment was not completely traversed (entered or exited in the middle)
-      `t0`: the time at the start of the segment_id
-      `t1`: the time at the start of the next_id; if that is empty, then we use the time at the end of the segment_id
+      `id` : segment id
+      `next_id` : next segment id
+      `queue_length` : the distance (meters) from the end of the segment where the speed drops below the threshold
+      `length` : the length of the osmlr segment, which will be -1 if the segment was not completely traversed (entered or exited in the middle)
+      `t0` : the time at the start of the segment_id
+      `t1` : the time at the start of the next_id; if that is empty, then we use the time at the end of the segment_id
 
 ##### `segment_matcher`: the result of matched segments from the traffic_segment_matcher
   * `segments`: an array of segments:
