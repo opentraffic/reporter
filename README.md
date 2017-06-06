@@ -127,13 +127,13 @@ cat YOUR_FLAT_FILE | py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 -
 
 ### Exposed Ports/Services
 * the container exposes port 8002 for the reporter python and docker-compose maps that port to your localhost
-* you can test the reporter python http service with a trace to see 1) what is being sent to the datastore 2) what osmlr segments it matched 3) the shape used index within the input trace that can be trimmed : [click here](http://localhost:8002/report?json={"uuid":"100609","trace":[{"lat":14.543087,"lon":121.021019,"time":1000},{"lat":14.543620,"lon":121.021652,"time":1008},{"lat":14.544957,"lon":121.023247,"time":1029},{"lat":14.545470,"lon":121.023811,"time":1036},{"lat":14.546580,"lon":121.025124,"time":1053},{"lat":14.547284,"lon":121.025932,"time":1064},{"lat":14.547817,"lon":121.026665,"time":1072},{"lat":14.549700,"lon":121.028839,"time":1101},{"lat":14.550350,"lon":121.029610,"time":1111},{"lat":14.551256,"lon":121.030693,"time":1125},{"lat":14.551785,"lon":121.031395,"time":1133},{"lat":14.553422,"lon":121.033340,"time":1158},{"lat":14.553819,"lon":121.033806,"time":1164},{"lat":14.553976,"lon":121.033997,"time":1167}]})
+* you can test the reporter python http service with a trace to see 1) what is being sent to the datastore 2) what osmlr segments it matched 3) the shape used index within the input trace that can be trimmed (either been reported on or can be skipped) : [click here](http://localhost:8002/report?json={"uuid":"100609","trace":[{"lat":14.543087,"lon":121.021019,"time":1000},{"lat":14.543620,"lon":121.021652,"time":1008},{"lat":14.544957,"lon":121.023247,"time":1029},{"lat":14.545470,"lon":121.023811,"time":1036},{"lat":14.546580,"lon":121.025124,"time":1053},{"lat":14.547284,"lon":121.025932,"time":1064},{"lat":14.547817,"lon":121.026665,"time":1072},{"lat":14.549700,"lon":121.028839,"time":1101},{"lat":14.550350,"lon":121.029610,"time":1111},{"lat":14.551256,"lon":121.030693,"time":1125},{"lat":14.551785,"lon":121.031395,"time":1133},{"lat":14.553422,"lon":121.033340,"time":1158},{"lat":14.553819,"lon":121.033806,"time":1164},{"lat":14.553976,"lon":121.033997,"time":1167}]})
 * the output takes the form of:
-`"datastore":{"mode":"auto, "reports":[{"length": 500, "next_id": , "id": , "t0": , "t1": }]},`
-`"segment_matcher": {"segments":[{"segment_id": 12345, "way_ids":[123123123], "start_time": 231231111.456, "end_time": 231231175.356, "length": 500, "internal": false, "begin_shape_index":0, "end_shape_index": 20, "queue_length": 0}], "mode":"auto},`
+`"datastore":{"mode":"auto, "reports":[{"id": , next_id": , "queue_length": 0, "length": 500, "t0": , "t1": }]},`
+`"segment_matcher": {"segments":[{"segment_id": 12345, "way_ids":[123123123], "start_time": 231231111.456, "end_time": 231231175.356, "queue_length": 0, "length": 500, "internal": false, "begin_shape_index":0, "end_shape_index": 20}], "mode":"auto},`
 `"shape_used": 10}`
 
-### `datastore`: contain the mode and list of reports that are sent to the datastore
+#####`datastore`: contain the mode and list of reports that are sent to the datastore
   * `mode`: a Valhalla mode of travel
   * `reports`: an array of reports that contain:
         `id`: segment id
@@ -143,7 +143,7 @@ cat YOUR_FLAT_FILE | py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 -
         `t0`: the time at the start of the segment_id
         `t1`: the time at the start of the next_id; if that is empty, then we use the time at the end of the segment_id
 
-### `segment_matcher`: the result of matched segments from the traffic_segment_matcher
+##### `segment_matcher`: the result of matched segments from the traffic_segment_matcher
   * `segments`: an array of segments:
         `segment_id`: optinal and will not be present when the portion of the path did not have osmlr coverage, otherwise this id is the osmlr 64bit id
         `way_ids`: a list of way ids per segment
@@ -154,9 +154,9 @@ cat YOUR_FLAT_FILE | py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 -
         `internal`: a bool which says whether this portion of the path was on internal edges ones that can be ignored for the sake of transitioning from one segment to another. this cannot be true if segment_id is present
         `begin_shape_index`: the index in the original trace before/at the start of the segment, useful for knowing which part of the trace constituted which segments
         `end_shape_index`: the index in the original trace before/at the end of the segment, useful for knowing which part of the trace constituted which segments
-        `mode`: a Valhalla mode of travel
+  * `mode`: a Valhalla mode of travel
 
-### `shape_used`: the index within the input trace that can be trimmed
+##### `shape_used`: the index within the input trace that can be trimmed
 
 * 3 other bits of code are running in the background to allow for on demand processing of single points at a time
   * the first two are kafka and zookeeper with some preconfigured topics to stream data on
