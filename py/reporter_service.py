@@ -116,7 +116,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
   #report some segments to the datastore
   def report(self, trace, debug):
- 
+  
     #ask valhalla to give back OSMLR segments along this trace
     result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
     segments = json.loads(result)
@@ -148,16 +148,27 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #length = -1 means this is a partial OSMLR segment match
     #internal means the segment is an internal intersection, turn channel, roundabout
     idx = 0
+    local_dropped = 0
     while (idx <= last_idx):
       seg = segments['segments'][idx]
       segment_id = seg.get('segment_id')
+      way_id = seg.get('way_id')
       start_time = seg.get('start_time')
       end_time = seg.get('end_time')
       internal = seg.get('internal', False)
       length = seg.get('length')
+      queue_length = seg.get('queue_length')
 
       #check if segment Id is on the local level
       level = (segment_id & 0x7) if segment_id != None else -1
+      
+      #if local match is not reported, lets do a count & log way_id
+      if level == 2:
+        local = dict()
+        local_dropped = local_dropped + 1
+        local['dropped'] = local_dropped
+        local['segment_id'] = segment_id
+        local['way_id'] = way_id        
 
       #Output if both this segment and prior segment are complete
       if (segment_id != None and length > 0 and prior_segment_id != None and prior_length > 0):
@@ -170,6 +181,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
           report['t0'] = prior_start_time
           report['t1']= start_time if level in thread_local.transition_levels else prior_end_time
           report['length'] = prior_length
+          report['queue_length'] = queue_length
           #Validate - ensure speed is not too high
           speed = (prior_length / (report['t1'] - report['t0'])) * 3.6
           if (speed < 200):
@@ -192,14 +204,27 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
       first_seg = False
       idx = idx+1
+      
+      #create stats to send to datastore
+      stats = dict()
+      stats['local'] = local
+      stats['matched'] = last_idx
+      stats['unmatched']
+      stats['partial']
+      #consecutive partials will return bad gps match errors
+      stats['bad_gps_match']
 
     if not datastore_out['reports']:
       datastore_out.pop('reports')
+    
     data = dict()
     if shape_used is not None:
       data['shape_used'] = shape_used
     data['segment_matcher'] = segments
     data['datastore'] = datastore_out
+    if stats is not None:
+      data['stats'] = stats
+
     #Now we will send the whole segments on to the datastore
     if debug == False:
       if os.environ.get('DATASTORE_URL') and len(reports):
