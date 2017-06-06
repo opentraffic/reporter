@@ -186,7 +186,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     if not datastore_out['reports']:
       datastore_out.pop('reports')
     data = {}
-    if shape_used is not None:
+    if shape_used:
       data['shape_used'] = shape_used
     data['segment_matcher'] = segments
     data['datastore'] = datastore_out
