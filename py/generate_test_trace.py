@@ -31,7 +31,7 @@ def decode(encoded):
 def synthesize_gps(edges, shape, distribution="normal",
                    stddev=0, uuid='999999'):
 
-    jsonDict = {"uuid": uuid, "trace": []}
+    jsonDict = {"uuid": uuid, "debug": "true", "trace": []}
     coords = decode(shape)
     maxCoordIndex = max([edge['end_shape_index'] for edge in edges])
     if maxCoordIndex >= len(coords):
@@ -105,25 +105,21 @@ def get_trace_attrs(shape):
 if __name__ == '__main__':
   try:
     lat1 = sys.argv[1]
-    print("lat1 = " + lat1)
     lon1 = sys.argv[2]
-    print("lon1 = " + lon1)
     lat2 = sys.argv[3]
-    print("lat2 = " + lat2)
     lon2 = sys.argv[4] 
-    print("lon2 = " + lon2)
-
     shape = get_route_shape(lat1, lon1, lat2, lon2)
-    print(len(shape))
-
+    print("")
     edges = get_trace_attrs(shape)
-    print(len(edges))
-
+    print("")
     report_json = synthesize_gps(edges, shape)
     payload = {"json": json.dumps(report_json, separators=(',', ':'))}
     baseUrl = 'http://localhost:8001/report?'
     matched_segs = requests.get(baseUrl, params=payload)
     print(matched_segs.url)
+    print("")
+    datastore_out = matched_segs.json()['datastore']
+    print(json.dumps(datastore_out, separators=(',', ':')))
   
   except:
     e = sys.exc_info()[0]
