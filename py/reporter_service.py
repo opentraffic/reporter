@@ -144,6 +144,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       start_time = seg.get('start_time')
       end_time = seg.get('end_time')
       internal = seg.get('internal', False)
+      queue_length = seg.get('queue_length')
       length = seg.get('length')
 
       #check if segment Id is on the local level
@@ -160,6 +161,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
           report['t0'] = prior_start_time
           report['t1']= start_time if level in thread_local.transition_levels else prior_end_time
           report['length'] = prior_length
+          report['queue_length'] = prior_queue_length
           #Validate - ensure speed is not too high
           speed = (prior_length / (report['t1'] - report['t0'])) * 3.6
           if (speed < 200):
@@ -179,6 +181,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         prior_internal = internal
         prior_length = length
         prior_level = level
+        prior_queue_length = queue_length
 
       first_seg = False
       idx += 1
