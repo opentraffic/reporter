@@ -65,11 +65,9 @@ public class Batch {
       //parse the response
       ObjectMapper mapper = new ObjectMapper();
       JsonNode node = mapper.readTree(response);
+      JsonNode shape_used = (JsonNode)node.findValue("shape_used");
       //trim the points list based on how much was used
-      ArrayNode segments = (ArrayNode)node.findValue("segments");
-      JsonNode last = segments.size() == 0 ? null : segments.get(segments.size() - 1);
-      int trim_to = last == null || !last.has("segment_id") || last.get("length").asDouble() < 0 ?
-        points.size() : last.get("begin_shape_index").asInt();
+      int trim_to = shape_used == null ? points.size() : shape_used.intValue();
       points.subList(0,trim_to).clear();
       //update the info about whats now in this batch
       max_separation = 0;

@@ -11,6 +11,9 @@ services:
     volumes:
       - ${DATAPATH}:/data/valhalla
     environment:
+      REPORT_LEVELS: "0,1"
+      TRANSITION_LEVELS: "0,1"
+      THRESHOLD_SEC: 15
       - TODO_DATASTORE_URL=http://172.17.0.1:8003/store?
 
   reporter-kafka:

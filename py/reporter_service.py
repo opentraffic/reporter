@@ -21,6 +21,7 @@ import requests
 import valhalla
 import pickle
 import math
+from distutils.util import strtobool
 
 actions = set(['report'])
 
@@ -49,6 +50,16 @@ class ThreadPoolMixIn(ThreadingMixIn):
 
   def make_thread_locals(self):
     setattr(thread_local, 'segment_matcher', valhalla.SegmentMatcher())
+
+    #Set levels to report on, and levels to report transitions onto
+    setattr(thread_local, 'report_levels', set([ int(i) for i in os.environ.get('REPORT_LEVELS', '0,1').split(',')]))
+    setattr(thread_local, 'transition_levels', set([ int(i) for i in os.environ.get('TRANSITION_LEVELS', '0,1').split(',')]))
+
+    #Set the threshold for last segment
+    threshold_sec = 15
+    if os.environ.get('THRESHOLD_SEC'):
+      threshold_sec = bool(strtobool(str(os.environ.get('THRESHOLD_SEC'))))
+    setattr(thread_local, 'threshold_sec', threshold_sec)
 
   def process_request_thread(self):
     self.make_thread_locals()
@@ -97,23 +108,89 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
   #report some segments to the datastore
   def report(self, trace):
+ 
     #ask valhalla to give back OSMLR segments along this trace
     result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
     segments = json.loads(result)
 
-    #clean out the unuseful partial segments
+    #Get the end time
+    end_time = trace['trace'][len(trace['trace']) - 1]['time']
+
+    #Walk from the last segment until a segment is found where the difference between
+    #the end time and the segment begin time exceeds the threshold
+    last_idx = len(segments['segments'])-1
+    while (last_idx >= 0 and end_time - segments['segments'][last_idx]['start_time'] < thread_local.threshold_sec):
+      last_idx -= 1
+
+    #Trim shape to the beginning of the last segment
+    shape_used = None
+    if (last_idx >= 0):
+      shape_used = segments['segments'][last_idx]['begin_shape_index']
+
+    #Compute values to send to the datastore: start time for a segment
+    #next segment (if any), start time at the next segment (end time of segment if no next segment)
     segments['mode'] = 'auto'
-    segments['provider'] = os.environ.get('PROVIDER', '')
+    prior_segment_id = None
+    first_seg = True
+    datastore_out = {}
+    datastore_out['mode'] = 'auto'
+    datastore_out['reports'] = []
+    #length = -1 means this is a partial OSMLR segment match
+    #internal means the segment is an internal intersection, turn channel, roundabout
+    idx = 0
+    while (idx <= last_idx):
+      seg = segments['segments'][idx]
+      segment_id = seg.get('segment_id')
+      start_time = seg.get('start_time')
+      end_time = seg.get('end_time')
+      internal = seg.get('internal', False)
+      length = seg.get('length')
 
-    #Now we will send the whole segments on to the datastore
-    segments_json = json.dumps(segments, separators=(',', ':'))
-    if os.environ.get('DATASTORE_URL') and len(segments['segments']):
-      response = requests.post(os.environ['DATASTORE_URL'], segments_json)
-      if response.status_code != 200:
-        raise Exception(response.text)
+      #check if segment Id is on the local level
+      level = (segment_id & 0x7) if segment_id != None else -1
 
-    return segments_json
+      #Output if both this segment and prior segment are complete
+      if (segment_id != None and length > 0 and prior_segment_id != None and prior_length > 0):
+        #Conditonally output prior segments on local level
+        if prior_level in thread_local.report_levels:
+          #Add the prior segment. Next segment is set to empty if transition onto local level
+          report = dict()
+          report['id'] = prior_segment_id
+          report['next_id'] = segment_id if level in thread_local.transition_levels else None
+          report['t0'] = prior_start_time
+          report['t1']= start_time if level in thread_local.transition_levels else prior_end_time
+          report['length'] = prior_length
+          #Validate - ensure speed is not too high
+          speed = (prior_length / (report['t1'] - report['t0'])) * 3.6
+          if (speed < 200):
+            datastore_out['reports'].append(report)
+          else:
+            #Log this as an error
+            sys.stderr.write("Speed exceeds 200kph\n")
 
+      #Save state for next segment.
+      if internal == True and first_seg != True:
+        #Do not replace information on prior segment, except to mark the prior as internal
+        prior_internal = internal
+      else:
+        prior_segment_id = segment_id
+        prior_start_time = start_time
+        prior_end_time = end_time
+        prior_internal = internal
+        prior_length = length
+        prior_level = level
+
+      first_seg = False
+      idx += 1
+
+    if not datastore_out['reports']:
+      datastore_out.pop('reports')
+    data = {}
+    if shape_used:
+      data['shape_used'] = shape_used
+    data['segment_matcher'] = segments
+    data['datastore'] = datastore_out
+    return json.dumps(data, separators=(',', ':'))
 
   #parse the request because we dont get this for free!
   def handle_request(self, post):
