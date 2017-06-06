@@ -31,7 +31,7 @@ def decode(encoded):
 def synthesize_gps(edges, shape, distribution="normal",
                    stddev=0, uuid='999999'):
 
-    jsonDict = {"uuid": uuid, "debug": "true", "trace": []}
+    jsonDict = {"uuid": uuid, "trace": []}
     coords = decode(shape)
     maxCoordIndex = max([edge['end_shape_index'] for edge in edges])
     if maxCoordIndex >= len(coords):

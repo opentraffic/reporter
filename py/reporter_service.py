@@ -66,9 +66,6 @@ class ThreadPoolMixIn(ThreadingMixIn):
       threshold_sec = bool(strtobool(str(os.environ.get('THRESHOLD_SEC'))))
     setattr(thread_local, 'threshold_sec', threshold_sec)
 
-    provider = os.environ.get('PROVIDER', '')
-    setattr(thread_local, 'provider', provider)
-
   def process_request_thread(self):
     self.make_thread_locals()
     while True:
@@ -115,7 +112,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
 
   #report some segments to the datastore
-  def report(self, trace, debug):
+  def report(self, trace):
  
     #ask valhalla to give back OSMLR segments along this trace
     result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
@@ -128,7 +125,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #the end time and the segment begin time exceeds the threshold
     last_idx = len(segments['segments'])-1
     while (last_idx >= 0 and end_time - segments['segments'][last_idx]['start_time'] < thread_local.threshold_sec):
-      last_idx = last_idx-1
+      last_idx -= 1
 
     #Trim shape to the beginning of the last segment
     shape_used = None
@@ -138,12 +135,10 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #Compute values to send to the datastore: start time for a segment
     #next segment (if any), start time at the next segment (end time of segment if no next segment)
     segments['mode'] = 'auto'
-    segments['provider'] = thread_local.provider
     prior_segment_id = None
     first_seg = True
-    datastore_out = dict()
+    datastore_out = {}
     datastore_out['mode'] = 'auto'
-    datastore_out['provider'] = thread_local.provider
     datastore_out['reports'] = []
     #length = -1 means this is a partial OSMLR segment match
     #internal means the segment is an internal intersection, turn channel, roundabout
@@ -176,7 +171,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
             datastore_out['reports'].append(report)
           else:
             #Log this as an error
-            print("Speed exceeds 200kph")
+            sys.stderr.write("Speed exceeds 200kph\n")
 
       #Save state for next segment.
       if internal == True and first_seg != True:
@@ -191,21 +186,15 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         prior_level = level
 
       first_seg = False
-      idx = idx+1
+      idx += 1
 
     if not datastore_out['reports']:
       datastore_out.pop('reports')
-    data = dict()
+    data = {}
     if shape_used is not None:
       data['shape_used'] = shape_used
     data['segment_matcher'] = segments
     data['datastore'] = datastore_out
-    #Now we will send the whole segments on to the datastore
-    if debug == False:
-      if os.environ.get('DATASTORE_URL') and len(reports):
-        response = requests.post(os.environ['DATASTORE_URL'], datastore_json)
-        if response.status_code != 200:
-          raise Exception(response.text) 
     return json.dumps(data, separators=(',', ':'))
 
   #parse the request because we dont get this for free!
@@ -221,14 +210,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     if uuid is None:
       return 400, '{"error":"uuid is required"}'
 
-    if trace.get('debug'):
-      try:
-        debug = bool(strtobool(str(trace.get('debug'))))
-      except:
-        debug = False
-    else:
-     debug = False
-
     #one or more points is required
     try:
       trace['trace'][1]
@@ -237,7 +218,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     #possibly report on what we have
     try:
-      return 200, self.report(trace, debug)
+      return 200, self.report(trace)
     except Exception as e:
       return 500, '{"error":"' + str(e) + '"}'
 
