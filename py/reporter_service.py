@@ -51,16 +51,11 @@ class ThreadPoolMixIn(ThreadingMixIn):
   def make_thread_locals(self):
     setattr(thread_local, 'segment_matcher', valhalla.SegmentMatcher())
 
-    levels = "0,1"
-    if os.environ.get('REPORT_LEVELS'):
-      levels = os.environ.get('REPORT_LEVELS')
-    setattr(thread_local, 'report_levels', set([ int(i) for i in levels.split(',')]))
+    #Set levels to report on, and levels to report transitions onto
+    setattr(thread_local, 'report_levels', set([ int(i) for i in os.environ.get('REPORT_LEVELS', '0,1').split(',')]))
+    setattr(thread_local, 'transition_levels', set([ int(i) for i in os.environ.get('TRANSITION_LEVELS', '0,1').split(',')]))
 
-    trans_levels = "0,1"
-    if os.environ.get('TRANSITION_LEVELS'):
-      trans_levels = os.environ.get('TRANSITION_LEVELS')
-    setattr(thread_local, 'transition_levels', set([ int(i) for i in trans_levels.split(',')]))
-
+    #Set the threshold for last segment
     threshold_sec = 15
     if os.environ.get('THRESHOLD_SEC'):
       threshold_sec = bool(strtobool(str(os.environ.get('THRESHOLD_SEC'))))
