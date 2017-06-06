@@ -127,15 +127,37 @@ cat YOUR_FLAT_FILE | py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 -
 
 ### Exposed Ports/Services
 * the container exposes port 8002 for the reporter python and docker-compose maps that port to your localhost
-* you can test the reporter python http service with a trace to see what osmlr segments it matched: [click here](http://localhost:8002/report?json=%7B%22trace%22%3A%5B%7B%22lat%22%3A14.543087%2C%22lon%22%3A121.021019%2C%22time%22%3A1000%7D%2C%7B%22lat%22%3A14.543620%2C%22lon%22%3A121.021652%2C%22time%22%3A1008%7D%2C%7B%22lat%22%3A14.544957%2C%22lon%22%3A121.023247%2C%22time%22%3A1029%7D%2C%7B%22lat%22%3A14.545470%2C%22lon%22%3A121.023811%2C%22time%22%3A1036%7D%2C%7B%22lat%22%3A14.546580%2C%22lon%22%3A121.025124%2C%22time%22%3A1053%7D%2C%7B%22lat%22%3A14.547284%2C%22lon%22%3A121.025932%2C%22time%22%3A1064%7D%2C%7B%22lat%22%3A14.547817%2C%22lon%22%3A121.026665%2C%22time%22%3A1072%7D%2C%7B%22lat%22%3A14.549700%2C%22lon%22%3A121.028839%2C%22time%22%3A1101%7D%2C%7B%22lat%22%3A14.550350%2C%22lon%22%3A121.029610%2C%22time%22%3A1111%7D%2C%7B%22lat%22%3A14.551256%2C%22lon%22%3A121.030693%2C%22time%22%3A1125%7D%2C%7B%22lat%22%3A14.551785%2C%22lon%22%3A121.031395%2C%22time%22%3A1133%7D%2C%7B%22lat%22%3A14.553422%2C%22lon%22%3A121.033340%2C%22time%22%3A1158%7D%2C%7B%22lat%22%3A14.553819%2C%22lon%22%3A121.033806%2C%22time%22%3A1164%7D%2C%7B%22lat%22%3A14.553976%2C%22lon%22%3A121.033997%2C%22time%22%3A1167%7D%5D%7D)
-* the output takes the form of: `{"segments":[{"segment_id": 12345, "start_time": 231231111.456, "end_time": 231231175.356, "length": 500, "internal": false, "begin_shape_index":0, "end_shape_index": 20} ... ]}`
-  * segment_id is optinal and will not be present when the portion of the path did not have osmlr coverage, otherwise this id is the osmlr 64bit id
-  * start_time is the time the path entered the osmlr segment, which will be -1 if the path got onto the segment in the middle of the segment
-  * end_time is the time the path exited the osmlr segment, which will be -1 if the path exited from the segment in the middle of the segment
-  * length is the length of the osmlr segment, which will be -1 if the segment was not completely traversed (entered or exited in the middle)
-  * internal is a bool which says whether this portion of the path was on internal edges ones that can be ignored for the sake of transitioning from one segment to another. this cannot be true if segment_id is present
-  * begin_shape_index is the index in the original trace before/at the start of the segment, useful for knowing which part of the trace constituted which segments
-  * end_shape_index is the index in the original trace before/at the end of the segment, useful for knowing which part of the trace constituted which segments
+* you can test the reporter python http service with a trace to see 1) what is being sent to the datastore 2) what osmlr segments it matched 3) the shape used index within the input trace that can be trimmed : [click here](http://localhost:8002/report?json={"uuid":"100609","trace":[{"lat":14.543087,"lon":121.021019,"time":1000},{"lat":14.543620,"lon":121.021652,"time":1008},{"lat":14.544957,"lon":121.023247,"time":1029},{"lat":14.545470,"lon":121.023811,"time":1036},{"lat":14.546580,"lon":121.025124,"time":1053},{"lat":14.547284,"lon":121.025932,"time":1064},{"lat":14.547817,"lon":121.026665,"time":1072},{"lat":14.549700,"lon":121.028839,"time":1101},{"lat":14.550350,"lon":121.029610,"time":1111},{"lat":14.551256,"lon":121.030693,"time":1125},{"lat":14.551785,"lon":121.031395,"time":1133},{"lat":14.553422,"lon":121.033340,"time":1158},{"lat":14.553819,"lon":121.033806,"time":1164},{"lat":14.553976,"lon":121.033997,"time":1167}]})
+* the output takes the form of:
+`"datastore":{"mode":"auto, "reports":[{"length": 500, "next_id": , "id": , "t0": , "t1": }]},`
+`"segment_matcher": {"segments":[{"segment_id": 12345, "way_ids":[123123123], "start_time": 231231111.456, "end_time": 231231175.356, "length": 500, "internal": false, "begin_shape_index":0, "end_shape_index": 20, "queue_length": 0}], "mode":"auto},`
+`"shape_used": 10}`
+
+### `datastore`: contain the mode and list of reports that are sent to the datastore
+  * `mode`: a Valhalla mode of travel
+  * `reports`: an array of reports that contain:
+        `id`: segment id
+        `next_id`: next segment id
+        `queue_length`: the distance (meters) from the end of the segment where the speed drops below the threshold
+        `length`: the length of the osmlr segment, which will be -1 if the segment was not completely traversed (entered or exited in the middle)
+        `t0`: the time at the start of the segment_id
+        `t1`: the time at the start of the next_id; if that is empty, then we use the time at the end of the segment_id
+
+### `segment_matcher`: the result of matched segments from the traffic_segment_matcher
+  * `segments`: an array of segments:
+        `segment_id`: optinal and will not be present when the portion of the path did not have osmlr coverage, otherwise this id is the osmlr 64bit id
+        `way_ids`: a list of way ids per segment
+        `start_time`: the time the path entered the osmlr segment, which will be -1 if the path got onto the segment in the middle of the segment
+        `end_time`: the time the path exited the osmlr segment, which will be -1 if the path exited from the segment in the middle of the segment
+        `queue_length`: the distance (meters) from the end of the segment where the speed drops below the threshold
+        `length`: the length of the osmlr segment, which will be -1 if the segment was not completely traversed (entered or exited in the middle)
+        `internal`: a bool which says whether this portion of the path was on internal edges ones that can be ignored for the sake of transitioning from one segment to another. this cannot be true if segment_id is present
+        `begin_shape_index`: the index in the original trace before/at the start of the segment, useful for knowing which part of the trace constituted which segments
+        `end_shape_index`: the index in the original trace before/at the end of the segment, useful for knowing which part of the trace constituted which segments
+        `mode`: a Valhalla mode of travel
+
+### `shape_used`: the index within the input trace that can be trimmed
+
 * 3 other bits of code are running in the background to allow for on demand processing of single points at a time
   * the first two are kafka and zookeeper with some preconfigured topics to stream data on
   * the final piece is a kafka worker which does the reformatting of the raw stream and aggregates sequences of points by time and trace id (uuid)
