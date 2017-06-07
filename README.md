@@ -133,29 +133,33 @@ cat YOUR_FLAT_FILE | py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 -
 `"segment_matcher": {"segments":[{"segment_id": 12345, "way_ids":[123123123], "start_time": 231231111.456, "end_time": 231231175.356, "queue_length": 0, "length": 500, "internal": false, "begin_shape_index":0, "end_shape_index": 20}], "mode":"auto},`
 `"shape_used": 10}`
 
+### Reporter Output
+
 ##### `datastore`: contain the mode and list of reports that are sent to the datastore
-  * `mode`: a Valhalla mode of travel
-  * `reports`: an array of reports that contain:  
-      `id` : segment id
-      `next_id` : next segment id
-      `queue_length` : the distance (meters) from the end of the segment where the speed drops below the threshold
-      `length` : the length of the osmlr segment, which will be -1 if the segment was not completely traversed (entered or exited in the middle)
-      `t0` : the time at the start of the segment_id
-      `t1` : the time at the start of the next_id; if that is empty, then we use the time at the end of the segment_id
-
+``` 
+  * mode : a Valhalla mode of travel
+  * reports : an array of reports that contain: 
+      * id : segment id
+      * next_id : next segment id
+      * queue_length : the distance (meters) from the end of the segment where the speed drops below the threshold
+      * length : the length of the osmlr segment, which will be -1 if the segment was not completely traversed (entered or exited in the middle)
+      * t0 : the time at the start of the segment_id
+      * t1 : the time at the start of the next_id; if that is empty, then we use the time at the end of the segment_id
+```
 ##### `segment_matcher`: the result of matched segments from the traffic_segment_matcher
-  * `segments`: an array of segments:
-      `segment_id`: optinal and will not be present when the portion of the path did not have osmlr coverage, otherwise this id is the osmlr 64bit id
-      `way_ids`: a list of way ids per segment
-      `start_time`: the time the path entered the osmlr segment, which will be -1 if the path got onto the segment in the middle of the segment
-      `end_time`: the time the path exited the osmlr segment, which will be -1 if the path exited from the segment in the middle of the segment
-      `queue_length`: the distance (meters) from the end of the segment where the speed drops below the threshold
-      `length`: the length of the osmlr segment, which will be -1 if the segment was not completely traversed (entered or exited in the middle)
-      `internal`: a bool which says whether this portion of the path was on internal edges ones that can be ignored for the sake of transitioning from one segment to another. this cannot be true if segment_id is present
-      `begin_shape_index`: the index in the original trace before/at the start of the segment, useful for knowing which part of the trace constituted which segments
-      `end_shape_index`: the index in the original trace before/at the end of the segment, useful for knowing which part of the trace constituted which segments
-  * `mode`: a Valhalla mode of travel
-
+``` 
+  * segments : an array of segments:
+      * segment_id : optinal and will not be present when the portion of the path did not have osmlr coverage, otherwise this id is the osmlr 64bit id
+      * way_ids : a list of way ids per segment
+      * start_time : the time the path entered the osmlr segment, which will be -1 if the path got onto the segment in the middle of the segment
+      * end_time : the time the path exited the osmlr segment, which will be -1 if the path exited from the segment in the middle of the segment
+      * queue_length : the distance (meters) from the end of the segment where the speed drops below the threshold
+      * length`: the length of the osmlr segment, which will be -1 if the segment was not completely traversed (entered or exited in the middle)
+      * internal : a bool which says whether this portion of the path was on internal edges ones that can be ignored for the sake of transitioning from one segment to another. this cannot be true if segment_id is present
+      * begin_shape_index : the index in the original trace before/at the start of the segment, useful for knowing which part of the trace constituted which segments
+      * end_shape_index : the index in the original trace before/at the end of the segment, useful for knowing which part of the trace constituted which segments
+  * mode : a Valhalla mode of travel
+``` 
 ##### `shape_used`: the index within the input trace that can be trimmed
 
 * 3 other bits of code are running in the background to allow for on demand processing of single points at a time
