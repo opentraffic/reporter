@@ -174,7 +174,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
           if (speed < 200):
             datastore_out['reports'].append(report)
             successful_count += 1
-            successful_length = (prior_length * 0.001) #convert meters to km
+            successful_length = round((prior_length * 0.001),3) #convert meters to km
           else:
             #Log this as an error
             sys.stderr.write("Speed exceeds 200kph\n")
@@ -182,7 +182,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         #Log prior segments on local level not being reported; lets do a count and track prior_segment_ids
         else:
           unreported_count += 1
-          unreported_length = (prior_length * 0.001) #convert meters to km
+          unreported_length = round((prior_length * 0.001),3) #convert meters to km
       #log if prior segment is incomplete
       else:
         incomplete_seg_count += 1
