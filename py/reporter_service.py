@@ -158,9 +158,8 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       #check if segment Id is on the local level
       level = (segment_id & 0x7) if segment_id != None else -1
 
-      #Output if both this segment and prior segment are complete
-      if (segment_id != None and length > 0 and prior_segment_id != None and prior_length > 0):
-        #Conditonally output prior segments on local level
+      #Conditionally output prior segment if it is complete and the level is configured to be reported
+      if prior_segment_id != None and prior_length > 0:
         if prior_level in thread_local.report_levels:
           #Add the prior segment. Next segment is set to empty if transition onto local level
           report = {}
@@ -184,6 +183,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         else:
           unreported_count += 1
           unreported_length = (prior_length * 0.001) #convert meters to km
+
       #Save state for next segment.
       if internal == True and first_seg != True:
         #Do not replace information on prior segment, except to mark the prior as internal
