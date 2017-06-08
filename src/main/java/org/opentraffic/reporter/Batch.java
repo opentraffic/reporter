@@ -61,6 +61,24 @@ public class Batch {
     String post_body = sb.toString();
     //go to the server for json
     String response = HttpClient.POST(url, post_body);
+    try {
+      //parse the response
+      ObjectMapper mapper = new ObjectMapper();
+      JsonNode node = mapper.readTree(response);
+      JsonNode shape_used = (JsonNode)node.findValue("shape_used");
+      //trim the points list based on how much was used
+      int trim_to = shape_used == null ? points.size() : shape_used.intValue();
+      points.subList(0,trim_to).clear();
+      //update the info about whats now in this batch
+      max_separation = 0;
+      for(int i = 1; i < points.size(); i++)
+        max_separation = (float)Math.max(max_separation, distance(points.get(i), points.get(0)));
+    }
+    catch(Exception e) {
+      //TODO: maybe we shouldnt trim everything?
+      max_separation = 0;
+      points.clear();
+    }
     //return the raw response string
     return response;    
   }

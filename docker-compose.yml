@@ -33,7 +33,7 @@ services:
       - "2181:2181"
 
   kafka:
-    image: wurstmeister/kafka:latest
+    image: wurstmeister/kafka:0.10.2.0-1
     networks:
       - opentraffic
     ports:

@@ -22,7 +22,6 @@ import valhalla
 import pickle
 import math
 from distutils.util import strtobool
-import pdb
 
 actions = set(['report'])
 
@@ -133,40 +132,32 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     segments['mode'] = 'auto'
     prior_segment_id = None
     first_seg = True
+    idx, successful_count, unreported_count, successful_length, unreported_length, discontinuities_count, partialseg_gt_2, invalid_speed_count, unassociated_seg_count = [0 for _ in range(9)]
     datastore_out = {}
     datastore_out['mode'] = 'auto'
     datastore_out['reports'] = []
-    #length = -1 means this is a partial OSMLR segment match
-    #internal means the segment is an internal intersection, turn channel, roundabout
-    idx = 0
-    local_dropped = 0
-    discontinuities = 0
     while (idx <= last_idx):
       seg = segments['segments'][idx]
       segment_id = seg.get('segment_id')
       way_ids = seg.get('way_ids')
       start_time = seg.get('start_time')
       end_time = seg.get('end_time')
+      #internal means the segment is an internal intersection, turn channel, roundabout
       internal = seg.get('internal', False)
-      length = seg.get('length')
       queue_length = seg.get('queue_length')
-
-      #report aggregated count of number of matches that include discontinuities (consecutive partials) as invalid
-      if length == -1
-        if segments['segments'][idx-1] and length == -1
-          discontinuities =+
+      #length = -1 means this is a partial OSMLR segment match
+      length = seg.get('length')
+      #report a count of the number of matches that include discontinuities (2 consecutive partials) as invalid
+      #if the current seg is not the first and the prior seg is not the last, we do not want to include these partials
+      if (idx != 0 and length < 0) and (segments['segments'][idx-1] != segments['segments'][len(segments['segments'])-1] and segments['segments'][idx-1]['length'] < 0):
+        discontinuities_count += 1
+        #if there are more than 2 consecutive partial segs then count
+        if (segments['segments'][idx-2]['length'] < 0):
+          partialseg_gt_2 += 1
 
       #check if segment Id is on the local level
       level = (segment_id & 0x7) if segment_id != None else -1
-      pdb.set_trace()
-      #if local match is not reported, lets do a count & log way_id
-      local = {}
-      if level == 2:
-        local_dropped += 1
-        local['dropped_matches'] = local_dropped
-        local['segment_id'] = segment_id
-        local['way_ids'] = way_ids
-
+      
       #Output if both this segment and prior segment are complete
       if (segment_id != None and length > 0 and prior_segment_id != None and prior_length > 0):
         #Conditonally output prior segments on local level
@@ -178,15 +169,21 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
           report['t0'] = prior_start_time
           report['t1']= start_time if level in thread_local.transition_levels else prior_end_time
           report['length'] = prior_length
-          report['queue_length'] = queue_length
+          report['queue_length'] = prior_queue_length
           #Validate - ensure speed is not too high
           speed = (prior_length / (report['t1'] - report['t0'])) * 3.6
           if (speed < 200):
             datastore_out['reports'].append(report)
+            successful_count += 1
+            successful_length = (prior_length * 0.001) #convert meters to km
           else:
             #Log this as an error
             sys.stderr.write("Speed exceeds 200kph\n")
-
+            invalid_speed_count += 1
+        #Log prior segments on local level not being reported; lets do a count and track prior_segment_ids & way_ids 
+        else:
+          unreported_count += 1
+          unreported_length = (prior_length * 0.001) #convert meters to km
       #Save state for next segment.
       if internal == True and first_seg != True:
         #Do not replace information on prior segment, except to mark the prior as internal
@@ -198,23 +195,36 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         prior_internal = internal
         prior_length = length
         prior_level = level
-
+        prior_queue_length = queue_length
+        
       first_seg = False
       idx += 1
+      #Track segments that match to edges that do not have any OSMLR Id but are not internal (turn channel, roundabout, internal intersection) -
+      #Likely a service road (driveway, alley, parking aisle, etc.)
+      if segment_id is None and internal == False:
+        unassociated_seg_count += 1
 
-    stats = {}
-    stats['local'] = local
-    stats['successful_matches'] = last_idx
-    stats['invalid_matches'] = discontinuities
-
+    successful, unreported, match_errors, stats, data = [{} for _ in range(5)]
+    successful['count'] = successful_count
+    successful['length'] = successful_length
+    unreported['count'] = unreported_count
+    unreported['length'] = unreported_length
+    match_errors['discontinuities'] = discontinuities_count
+    match_errors['partialseg_gt_2'] = partialseg_gt_2
+    stats['successful_matches'] = successful
+    stats['unreported_matches'] = unreported
+    stats['match_errors'] = match_errors
+    stats['invalid_speeds'] = invalid_speed_count
+    stats['unassociated_segments'] = unassociated_seg_count
+    
     if not datastore_out['reports']:
       datastore_out.pop('reports')
-    data = {}
-    if shape_used is not None:
+      
+    if shape_used:
       data['shape_used'] = shape_used
     data['segment_matcher'] = segments
     data['datastore'] = datastore_out
-    data['statistics'] = stats
+    data['stats'] = stats
 
     return json.dumps(data, separators=(',', ':'))
 

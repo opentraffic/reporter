@@ -31,7 +31,7 @@ while getopts ":s:f:b:t:" opt; do
   esac
 done
 
-if [[ -z ${s3_dir} ]] || [[ -z ${file_re} ]] || [[ -z ${brokers} ]] || [[ -z ${topic} ]]; then
+if [[ -z ${s3_dir} ]] || [[ -z ${file_re} ]] || [[ -z ${bootstrap} ]] || [[ -z ${topic} ]]; then
   echo "Missing required option" 1>&2 && usage
 fi
 

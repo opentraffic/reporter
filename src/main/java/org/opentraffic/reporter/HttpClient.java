@@ -11,8 +11,10 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
+import org.apache.log4j.Logger;
 
 public final class HttpClient {
+  private final static Logger logger = Logger.getLogger(HttpClient.class);
   public static String POST(String url, String body) {
     //try to get the response and parse it
     CloseableHttpResponse response = null;
@@ -33,7 +35,7 @@ public final class HttpClient {
       EntityUtils.consume(response_entity);
     }//swallow anything
     catch(Exception e) {
-      //TODO: log 
+      logger.error("Couldn't POST to " + url + " with body " + body);
     }//always close
     finally {
       if(response != null) 

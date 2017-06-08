@@ -6,6 +6,7 @@ import java.text.DecimalFormatSymbols;
 import java.text.ParseException;
 import java.util.Locale;
 
+import org.apache.log4j.Logger;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
@@ -25,12 +26,15 @@ public class Formatter {
   //json stuff
   private String uuid_key, lat_key, lon_key, time_key, accuracy_key;
   
+  private final static Logger logger = Logger.getLogger(Formatter.class);
+  
   //hide this you have to use a supported type
   private Formatter() {
     floatFormatter = new DecimalFormat("###.######", new DecimalFormatSymbols(Locale.US));
   }
   
   public static Formatter GetFormatter(String format) {
+    logger.info("Formatting with: " + format);    
     String split_on = format.substring(0,1);
     format = format.substring(1);
     String[] args = format.split(split_on);
