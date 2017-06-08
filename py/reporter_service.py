@@ -180,7 +180,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
             #Log this as an error
             sys.stderr.write("Speed exceeds 200kph\n")
             invalid_speed_count += 1
-        #Log prior segments on local level not being reported; lets do a count and track prior_segment_ids & way_ids 
+        #Log prior segments on local level not being reported; lets do a count and track prior_segment_ids
         else:
           unreported_count += 1
           unreported_length = (prior_length * 0.001) #convert meters to km
@@ -204,27 +204,23 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       if segment_id is None and internal == False:
         unassociated_seg_count += 1
 
-    successful, unreported, match_errors, stats, data = [{} for _ in range(5)]
-    successful['count'] = successful_count
-    successful['length'] = successful_length
-    unreported['count'] = unreported_count
-    unreported['length'] = unreported_length
-    match_errors['discontinuities'] = discontinuities_count
-    match_errors['partialseg_gt_2'] = partialseg_gt_2
-    stats['successful_matches'] = successful
-    stats['unreported_matches'] = unreported
-    stats['match_errors'] = match_errors
-    stats['invalid_speeds'] = invalid_speed_count
-    stats['unassociated_segments'] = unassociated_seg_count
-    
-    if not datastore_out['reports']:
-      datastore_out.pop('reports')
+    if len(datastore_out['reports']) == 0:
+      del datastore_out['reports']
 
+    data = {'stats':{'successful_matches':{}, 'unreported_matches':{}, 'match_errors':{}}}
     if shape_used:
       data['shape_used'] = shape_used
     data['segment_matcher'] = segments
     data['datastore'] = datastore_out
-    data['stats'] = stats
+
+    data['stats']['successful_matches']['count'] = successful_count
+    data['stats']['successful_matches']['length'] = successful_length
+    data['stats']['unreported_matches']['count'] = unreported_count
+    data['stats']['unreported_matches']['length'] = unreported_length
+    data['stats']['match_errors']['discontinuities'] = discontinuities_count
+    data['stats']['match_errors']['partialseg_gt_2'] = partialseg_gt_2
+    data['stats']['invalid_speeds'] = invalid_speed_count
+    data['stats']['unassociated_segments'] = unassociated_seg_count
     return json.dumps(data, separators=(',', ':'))
 
   #parse the request because we dont get this for free!
