@@ -132,7 +132,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     segments['mode'] = 'auto'
     prior_segment_id = None
     first_seg = True
-    idx, successful_count, unreported_count, successful_length, unreported_length, discontinuities_count, partialseg_gt_2, invalid_speed_count, unassociated_seg_count, internal_seg_count = [0 for _ in range(10)]
+    idx, successful_count, unreported_count, successful_length, unreported_length, discontinuities_count, partialseg_gt_2, invalid_speed_count, unassociated_seg_count, internal_seg_count, incomplete_seg_count = [0 for _ in range(11)]
     datastore_out = {}
     datastore_out['mode'] = 'auto'
     datastore_out['reports'] = []
@@ -183,6 +183,9 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         else:
           unreported_count += 1
           unreported_length = (prior_length * 0.001) #convert meters to km
+      #log if prior segment is incomplete
+      else:
+        incomplete_seg_count += 1
 
       #Save state for next segment.
       if internal == True and first_seg != True:
@@ -220,11 +223,13 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     data['stats']['successful_matches']['length'] = successful_length
     data['stats']['unreported_matches']['count'] = unreported_count
     data['stats']['unreported_matches']['length'] = unreported_length
+    data['stats']['incomplete_segments'] = incomplete_seg_count
     data['stats']['match_errors']['discontinuities'] = discontinuities_count
     data['stats']['match_errors']['partialseg_gt_2'] = partialseg_gt_2
     data['stats']['non_osmlr']['unassociated_segments'] = unassociated_seg_count
     data['stats']['non_osmlr']['internal_segments'] = internal_seg_count
     data['stats']['invalid_speeds'] = invalid_speed_count
+
     return json.dumps(data, separators=(',', ':'))
 
   #parse the request because we dont get this for free!
