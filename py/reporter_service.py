@@ -157,7 +157,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
       #check if segment Id is on the local level
       level = (segment_id & 0x7) if segment_id != None else -1
-      
+
       #Output if both this segment and prior segment are complete
       if (segment_id != None and length > 0 and prior_segment_id != None and prior_length > 0):
         #Conditonally output prior segments on local level
@@ -196,7 +196,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         prior_length = length
         prior_level = level
         prior_queue_length = queue_length
-        
+
       first_seg = False
       idx += 1
       #Track segments that match to edges that do not have any OSMLR Id but are not internal (turn channel, roundabout, internal intersection) -
@@ -219,13 +219,12 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     
     if not datastore_out['reports']:
       datastore_out.pop('reports')
-      
+
     if shape_used:
       data['shape_used'] = shape_used
     data['segment_matcher'] = segments
     data['datastore'] = datastore_out
     data['stats'] = stats
-
     return json.dumps(data, separators=(',', ':'))
 
   #parse the request because we dont get this for free!
