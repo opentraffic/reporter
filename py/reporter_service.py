@@ -132,7 +132,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     segments['mode'] = 'auto'
     prior_segment_id = None
     first_seg = True
-    idx, successful_count, unreported_count, successful_length, unreported_length, discontinuities_count, partialseg_gt_2, invalid_speed_count, unassociated_seg_count, internal_seg_count, incomplete_seg_count = [0 for _ in range(11)]
+    idx, successful_count, unreported_count, successful_length, unreported_length, discontinuities_count, invalid_speed_count, unassociated_seg_count = [0 for _ in range(8)]
     datastore_out = {}
     datastore_out['mode'] = 'auto'
     datastore_out['reports'] = []
@@ -147,13 +147,9 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       queue_length = seg.get('queue_length')
       #length = -1 means this is a partial OSMLR segment match
       length = seg.get('length')
-      #report a count of the number of matches that include discontinuities (2 consecutive partials) as invalid
-      #if the current seg is not the first and the prior seg is not the last, we do not want to include these partials
-      if (idx != 0 and length < 0) and (segments['segments'][idx-1] != segments['segments'][len(segments['segments'])-1] and segments['segments'][idx-1]['length'] < 0):
+      #report a count of the number of matches that include discontinuities (a partial end time followed by a partial start time that are consecutive) as invalid
+      if idx != 0 and segments['segments'][idx]['start_time'] == -1 and segments['segments'][idx-1]['end_time'] == -1:
         discontinuities_count += 1
-        #if there are more than 2 consecutive partial segs then count
-        if (segments['segments'][idx-2]['length'] < 0):
-          partialseg_gt_2 += 1
 
       #check if segment Id is on the local level
       level = (segment_id & 0x7) if segment_id != None else -1
@@ -183,9 +179,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
         else:
           unreported_count += 1
           unreported_length = round((prior_length * 0.001),3) #convert meters to km
-      #log if prior segment is incomplete
-      else:
-        incomplete_seg_count += 1
 
       #Save state for next segment.
       if internal == True and first_seg != True:
@@ -202,18 +195,15 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
       first_seg = False
       idx += 1
-      #Track segments that match to edges that do not have any OSMLR Id and are non-internal vs. internal (turn channel, roundabout, internal intersection) -
+      #Track segments that match to edges that do not have any OSMLR Id and are non-internal (turn channel, roundabout, internal intersection) -
       #Likely a service road (driveway, alley, parking aisle, etc.)
-      if segment_id is None:
-        if internal == False:
-          unassociated_seg_count += 1
-        else:
-          internal_seg_count += 1
+      if segment_id is None and internal == False:
+        unassociated_seg_count += 1
 
     if len(datastore_out['reports']) == 0:
       del datastore_out['reports']
 
-    data = {'stats':{'successful_matches':{}, 'unreported_matches':{}, 'match_errors':{}, 'non_osmlr':{}}}
+    data = {'stats':{'successful_matches':{}, 'unreported_matches':{}, 'match_errors':{}}}
     if shape_used:
       data['shape_used'] = shape_used
     data['segment_matcher'] = segments
@@ -223,12 +213,9 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     data['stats']['successful_matches']['length'] = successful_length
     data['stats']['unreported_matches']['count'] = unreported_count
     data['stats']['unreported_matches']['length'] = unreported_length
-    data['stats']['incomplete_segments'] = incomplete_seg_count
     data['stats']['match_errors']['discontinuities'] = discontinuities_count
-    data['stats']['match_errors']['partialseg_gt_2'] = partialseg_gt_2
-    data['stats']['non_osmlr']['unassociated_segments'] = unassociated_seg_count
-    data['stats']['non_osmlr']['internal_segments'] = internal_seg_count
-    data['stats']['invalid_speeds'] = invalid_speed_count
+    data['stats']['match_errors']['invalid_speeds'] = invalid_speed_count
+    data['stats']['unassociated_segments'] = unassociated_seg_count
 
     return json.dumps(data, separators=(',', ':'))
 
