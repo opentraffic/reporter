@@ -132,30 +132,33 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     segments['mode'] = 'auto'
     prior_segment_id = None
     first_seg = True
+    idx, successful_count, unreported_count, successful_length, unreported_length, discontinuities_count, invalid_speed_count, unassociated_seg_count = [0 for _ in range(8)]
     datastore_out = {}
     datastore_out['mode'] = 'auto'
     datastore_out['reports'] = []
-    #length = -1 means this is a partial OSMLR segment match
-    #internal means the segment is an internal intersection, turn channel, roundabout
-    idx = 0
     while (idx <= last_idx):
       seg = segments['segments'][idx]
       segment_id = seg.get('segment_id')
+      way_ids = seg.get('way_ids')
       start_time = seg.get('start_time')
       end_time = seg.get('end_time')
+      #internal means the segment is an internal intersection, turn channel, roundabout
       internal = seg.get('internal', False)
       queue_length = seg.get('queue_length')
+      #length = -1 means this is a partial OSMLR segment match
       length = seg.get('length')
+      #report a count of the number of matches that include discontinuities (a partial end time followed by a partial start time that are consecutive) as invalid
+      if idx != 0 and segments['segments'][idx]['start_time'] == -1 and segments['segments'][idx-1]['end_time'] == -1:
+        discontinuities_count += 1
 
       #check if segment Id is on the local level
       level = (segment_id & 0x7) if segment_id != None else -1
 
-      #Output if both this segment and prior segment are complete
-      if (segment_id != None and length > 0 and prior_segment_id != None and prior_length > 0):
-        #Conditonally output prior segments on local level
+      #Conditionally output prior segment if it is complete and the level is configured to be reported
+      if prior_segment_id != None and prior_length > 0:
         if prior_level in thread_local.report_levels:
           #Add the prior segment. Next segment is set to empty if transition onto local level
-          report = dict()
+          report = {}
           report['id'] = prior_segment_id
           report['next_id'] = segment_id if level in thread_local.transition_levels else None
           report['t0'] = prior_start_time
@@ -166,9 +169,16 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
           speed = (prior_length / (report['t1'] - report['t0'])) * 3.6
           if (speed < 200):
             datastore_out['reports'].append(report)
+            successful_count += 1
+            successful_length = round((prior_length * 0.001),3) #convert meters to km
           else:
             #Log this as an error
             sys.stderr.write("Speed exceeds 200kph\n")
+            invalid_speed_count += 1
+        #Log prior segments on local level not being reported; lets do a count and track prior_segment_ids
+        else:
+          unreported_count += 1
+          unreported_length = round((prior_length * 0.001),3) #convert meters to km
 
       #Save state for next segment.
       if internal == True and first_seg != True:
@@ -185,14 +195,28 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
       first_seg = False
       idx += 1
+      #Track segments that match to edges that do not have any OSMLR Id and are non-internal (turn channel, roundabout, internal intersection) -
+      #Likely a service road (driveway, alley, parking aisle, etc.)
+      if segment_id is None and internal == False:
+        unassociated_seg_count += 1
 
-    if not datastore_out['reports']:
-      datastore_out.pop('reports')
-    data = {}
+    if len(datastore_out['reports']) == 0:
+      del datastore_out['reports']
+
+    data = {'stats':{'successful_matches':{}, 'unreported_matches':{}, 'match_errors':{}}}
     if shape_used:
       data['shape_used'] = shape_used
     data['segment_matcher'] = segments
     data['datastore'] = datastore_out
+
+    data['stats']['successful_matches']['count'] = successful_count
+    data['stats']['successful_matches']['length'] = successful_length
+    data['stats']['unreported_matches']['count'] = unreported_count
+    data['stats']['unreported_matches']['length'] = unreported_length
+    data['stats']['match_errors']['discontinuities'] = discontinuities_count
+    data['stats']['match_errors']['invalid_speeds'] = invalid_speed_count
+    data['stats']['unassociated_segments'] = unassociated_seg_count
+
     return json.dumps(data, separators=(',', ':'))
 
   #parse the request because we dont get this for free!
