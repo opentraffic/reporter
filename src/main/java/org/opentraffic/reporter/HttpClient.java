@@ -15,7 +15,7 @@ import org.apache.log4j.Logger;
 
 public final class HttpClient {
   private final static Logger logger = Logger.getLogger(HttpClient.class);
-  public static String POST(String url, String body) {
+  public static String POST(String url, StringEntity body) {
     //try to get the response and parse it
     CloseableHttpResponse response = null;
     String v = null;
@@ -23,9 +23,7 @@ public final class HttpClient {
       //build the request
       CloseableHttpClient client = HttpClients.createDefault();
       HttpPost post = new HttpPost(url);
-      StringEntity request_entity = new StringEntity(body);
-      request_entity.setContentType("application/json");
-      post.setEntity(request_entity);
+      post.setEntity(body);
       //make the request
       response = client.execute(post);
       HttpEntity response_entity = response.getEntity();
@@ -35,7 +33,7 @@ public final class HttpClient {
       EntityUtils.consume(response_entity);
     }//swallow anything
     catch(Exception e) {
-      logger.error("Couldn't POST to " + url + " with body " + body);
+      logger.error("Couldn't POST to " + url);
     }//always close
     finally {
       if(response != null) 

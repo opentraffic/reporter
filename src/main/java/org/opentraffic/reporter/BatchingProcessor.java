@@ -15,6 +15,8 @@ import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.Stores;
 import org.apache.log4j.Logger;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 //here we just take the incoming message, reformat it and key it while doing so
 public class BatchingProcessor implements ProcessorSupplier<String, Point> {
   
@@ -41,6 +43,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
     return new Processor<String, Point>() {
       private ProcessorContext context;
       private KeyValueStore<String, Batch> store;
+      //TODO: move these timing notions into the key value store
       private LinkedList<Pair<Long, String> > time_to_key;
       private HashMap<String, ListIterator<Pair<Long, String> > > key_to_time_iter;
   
@@ -66,9 +69,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         }//we have more than one point now
         else {
           batch.update(point);
-          String result = batch.report(key, url, REPORT_DIST, REPORT_COUNT, REPORT_TIME);
-          if(result != null)
-            context.forward(key, result);
+          forward(batch.report(key, url, REPORT_DIST, REPORT_COUNT, REPORT_TIME));
         }
         
         //put it back if it has something
@@ -98,7 +99,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
           Pair<Long, String> time_key = time_to_key.pop();
           Batch batch = this.store.get(time_key.second);
           //TODO: dont actually report here, instead insert into a queue that a thread can drain asynchronously
-          batch.report(time_key.second, url, 0, 2, 0);
+          forward(batch.report(time_key.second, url, 0, 2, 0));
           key_to_time_iter.remove(time_key.second);          
         }
         
@@ -109,6 +110,29 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         time_to_key.add(new Pair<Long, String>(context.timestamp(), key));
         iter = time_to_key.listIterator(time_to_key.size() - 1); //O(1)
         key_to_time_iter.put(key,  iter);
+      }
+      
+      private void forward(JsonNode result) {
+        JsonNode datastore = result != null ? result.get("datastore") : null;
+        JsonNode reports = datastore != null ? datastore.get("reports") : null;
+        //TODO: dont ignore the mode...
+        //forward on each segment pair
+        if(reports != null) {
+          for(JsonNode report : reports) {
+            try {
+              //make a segment pair with one observation
+              Segment segment = new Segment(report.get("id").asLong(), report.get("next_id").asLong(), 
+                  report.get("t0").asDouble(), report.get("t1").asDouble(),
+                  report.get("length").asInt(), report.get("queue_length").asInt());
+              //the key is the segment pair so processors will only ever see certain tiles
+              //this seeks to maximize the number of possible segments in a given tile
+              context.forward(Long.toString(segment.id) + ' ' + Long.toString(segment.next_id), segment);
+            }
+            catch(Exception e) {
+              logger.error("Unusable datastore segment pair: " + report.toString() + " (" + e.getMessage() + ")");
+            }
+          }
+        }
       }
   
       @Override
