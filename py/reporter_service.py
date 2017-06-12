@@ -157,14 +157,10 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       #Conditionally output prior segment if it is complete and the level is configured to be reported
       if prior_segment_id != None and prior_length > 0:
         if prior_level in thread_local.report_levels:
-          #Add the prior segment. Next segment is set to empty if transition onto local level
-          report = {}
-          report['id'] = prior_segment_id
-          report['next_id'] = segment_id if level in thread_local.transition_levels else None
-          report['t0'] = prior_start_time
-          report['t1']= start_time if level in thread_local.transition_levels else prior_end_time
-          report['length'] = prior_length
-          report['queue_length'] = prior_queue_length
+          #Add the prior segment.
+          report = {'id': prior_segment_id, 't0' : prior_start_time, 't1' : (start_time if level in thread_local.transition_levels else prior_end_time), 'length' : prior_length, 'queue_length' : prior_queue_length }
+          if level in thread_local.transition_levels and segment_id is not None:
+            report['next_id'] = segment_id
           #Validate - ensure speed is not too high
           speed = (prior_length / (report['t1'] - report['t0'])) * 3.6
           if (speed < 200):
