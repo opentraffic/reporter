@@ -69,7 +69,10 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         }//we have more than one point now
         else {
           batch.update(point);
+          int length = batch.points.size();
           forward(batch.report(key, url, REPORT_DIST, REPORT_COUNT, REPORT_TIME));
+          if(batch.points.size() != length)
+            logger.debug(key + " was trimmed from " + length + " down to " + batch.points.size());
         }
         
         //put it back if it has something
@@ -121,12 +124,15 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
           for(JsonNode report : reports) {
             try {
               //make a segment pair with one observation
-              Segment segment = new Segment(report.get("id").asLong(), report.get("next_id").asLong(), 
+              JsonNode next_id = report.get("next_id");
+              Segment segment = new Segment(report.get("id").asLong(),
+                  next_id == null || next_id.isNull() ? null : next_id.asLong(), 
                   report.get("t0").asDouble(), report.get("t1").asDouble(),
                   report.get("length").asInt(), report.get("queue_length").asInt());
               //the key is the segment pair so processors will only ever see certain tiles
               //this seeks to maximize the number of possible segments in a given tile
-              context.forward(Long.toString(segment.id) + ' ' + Long.toString(segment.next_id), segment);
+              context.forward(Long.toString(segment.id) + ' ' + 
+                  (segment.next_id != null ? Long.toString(segment.next_id) : "null"), segment);
             }
             catch(Exception e) {
               logger.error("Unusable datastore segment pair: " + report.toString() + " (" + e.getMessage() + ")");

@@ -15,8 +15,9 @@ import org.apache.kafka.common.serialization.Serializer;
  */
 public class TimeQuantisedTiledSegmentPair implements Comparable<TimeQuantisedTiledSegmentPair>{
   
-  public long time_range_start, tile_id, segment_id, next_segment_id;
-  public static final int SIZE = 8 + 8 + 8 + 8;
+  public long time_range_start, tile_id, segment_id;
+  public static final int SIZE = 8 + 8 + 8;
+  public Long next_segment_id;
   
   public TimeQuantisedTiledSegmentPair(long start, Segment segment) {
     this.time_range_start = start;
@@ -25,7 +26,7 @@ public class TimeQuantisedTiledSegmentPair implements Comparable<TimeQuantisedTi
     this.next_segment_id = segment.next_id;
   }
   
-  public TimeQuantisedTiledSegmentPair(long start, long tile, long id, long next) {
+  public TimeQuantisedTiledSegmentPair(long start, long tile, long id, Long next) {
     this.time_range_start = start;
     this.tile_id = tile;
     this.segment_id = id;
@@ -42,15 +43,6 @@ public class TimeQuantisedTiledSegmentPair implements Comparable<TimeQuantisedTi
   }
 
   public static class Serder implements Serde<TimeQuantisedTiledSegmentPair> {
-    public static void put(TimeQuantisedTiledSegmentPair t, ByteBuffer buffer) {
-      buffer.putLong(t.time_range_start);
-      buffer.putLong(t.tile_id);
-      buffer.putLong(t.segment_id);
-      buffer.putLong(t.next_segment_id);
-    }
-    public static TimeQuantisedTiledSegmentPair get(ByteBuffer buffer) {
-      return new TimeQuantisedTiledSegmentPair(buffer.getLong(),  buffer.getLong(), buffer.getLong(), buffer.getLong());
-    }
     @Override
     public void configure(Map<String, ?> configs, boolean isKey) { }    
     @Override
@@ -62,8 +54,12 @@ public class TimeQuantisedTiledSegmentPair implements Comparable<TimeQuantisedTi
         public void configure(Map<String, ?> configs, boolean isKey) { }
         @Override
         public byte[] serialize(String topic, TimeQuantisedTiledSegmentPair t) {
-          ByteBuffer buffer = ByteBuffer.allocate(SIZE);
-          Serder.put(t, buffer);
+          ByteBuffer buffer = ByteBuffer.allocate(SIZE + (t.next_segment_id != null ? 8 : 0));
+          buffer.putLong(t.time_range_start);
+          buffer.putLong(t.tile_id);
+          buffer.putLong(t.segment_id);
+          if(t.next_segment_id != null)
+            buffer.putLong(t.next_segment_id);
           return buffer.array();
         }
         @Override
@@ -78,7 +74,8 @@ public class TimeQuantisedTiledSegmentPair implements Comparable<TimeQuantisedTi
         @Override
         public TimeQuantisedTiledSegmentPair deserialize(String topic, byte[] bytes) {
           ByteBuffer buffer = ByteBuffer.wrap(bytes);
-          return Serder.get(buffer);
+          return new TimeQuantisedTiledSegmentPair(buffer.getLong(),  buffer.getLong(), buffer.getLong(),
+              buffer.hasRemaining() ? buffer.getLong() : null);
         }
         @Override
         public void close() { }
@@ -91,7 +88,9 @@ public class TimeQuantisedTiledSegmentPair implements Comparable<TimeQuantisedTi
     int tile = Long.signum(tile_id - o.tile_id) * 1000;
     int time = Long.signum(time_range_start - o.time_range_start) * 100;
     int seg =  Long.signum(segment_id - o.segment_id) * 10;
-    int next = Long.signum(next_segment_id - o.next_segment_id);
+    int next = next_segment_id == o.next_segment_id ? 0 : 
+      (o.next_segment_id == null ? -1 : (next_segment_id == null ? 1 :
+        Long.signum(next_segment_id - o.next_segment_id)));
     return tile + time + seg + next;
   }
 

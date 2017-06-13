@@ -13,26 +13,27 @@ import org.apache.kafka.common.serialization.Serializer;
 public class Segment {
   
   public static long INVALID_SEGMENT_ID = 0x3fffffffffffL;
-  public long id, next_id;  //segment ids
-  public double min, max;   //epoch seconds
-  public double duration;   //epoch seconds
-  public int length;        //meters
-  public int queue;         //meters
-  public int count;         //how many
-  public static final int SIZE = 8 + 8 + 8 + 8 + 8 + 4 + 4 + 4;
+  public long id;         //main segment id
+  public long min, max;   //epoch seconds
+  public double duration; //epoch seconds
+  public int length;      //meters
+  public int queue;       //meters
+  public int count;       //how many
+  public static final int SIZE = 8 + 8 + 8 + 8 + 4 + 4 + 4;
+  public Long next_id;    //optional next
   
-  public Segment(long id, long next_id, double start, double end, int length, int queue) {
+  public Segment(long id, Long next_id, double start, double end, int length, int queue) {
     this.id = id;
     this.next_id = next_id;
-    this.min = start;
-    this.max = end;
+    this.min = (long)Math.floor(start);
+    this.max = (long)Math.ceil(end);
     this.duration = max - min;
     this.length = length;
     this.queue = queue;
     this.count = 1;
   }
   
-  public Segment(long id, long next_id, double min, double max, double duration, int length, int queue, int count) {
+  public Segment(long id, long min, long max, double duration, int length, int queue, int count,  Long next_id) {
     this.id = id;
     this.next_id = next_id;
     this.min = min;
@@ -56,24 +57,22 @@ public class Segment {
   
   //first 3 bits are hierarchy level then 22 bits of tile id. the rest we want zero'd out
   public long getTile() {    
-    return id & 0xFFFFFF8000000000L;
+    return id & 0x1FFFFFFL;
+  }
+  
+  public void appendToStringBuffer(StringBuffer buffer) {
+    buffer.append(Long.toString(id)); buffer.append(',');
+    if(next_id != null)
+      buffer.append(Long.toString(next_id));
+    buffer.append(',');
+    buffer.append(Double.toString(duration)); buffer.append(',');
+    buffer.append(Integer.toString(length)); buffer.append(',');
+    buffer.append(Integer.toString(queue)); buffer.append(',');
+    buffer.append(Double.toString(min)); buffer.append(',');
+    buffer.append(Double.toString(max)); buffer.append('\n');
   }
 
   public static class Serder implements Serde<Segment> {
-    public static void put(Segment s, ByteBuffer buffer) {
-      buffer.putLong(s.id);
-      buffer.putLong(s.next_id);
-      buffer.putDouble(s.min);
-      buffer.putDouble(s.max);
-      buffer.putDouble(s.duration);
-      buffer.putInt(s.length);
-      buffer.putInt(s.queue);
-      buffer.putInt(s.count);
-    }
-    public static Segment get(ByteBuffer buffer) {
-      return new Segment(buffer.getLong(), buffer.getLong(), buffer.getDouble(), buffer.getDouble(), 
-        buffer.getDouble(), buffer.getInt(), buffer.getInt(), buffer.getInt());
-    }
     @Override
     public void configure(Map<String, ?> configs, boolean isKey) { }    
     @Override
@@ -87,8 +86,16 @@ public class Segment {
         public byte[] serialize(String topic, Segment s) {
           if(s == null)
             return null;
-          ByteBuffer buffer = ByteBuffer.allocate(SIZE);
-          Serder.put(s, buffer);
+          ByteBuffer buffer = ByteBuffer.allocate(SIZE + (s.next_id == null ? 0 : 8));
+          buffer.putLong(s.id);
+          buffer.putLong(s.min);
+          buffer.putLong(s.max);
+          buffer.putDouble(s.duration);
+          buffer.putInt(s.length);
+          buffer.putInt(s.queue);
+          buffer.putInt(s.count);
+          if(s.next_id != null)
+            buffer.putLong(s.next_id);
           return buffer.array();
         }
         @Override
@@ -105,7 +112,9 @@ public class Segment {
           if(bytes == null)
             return null;
           ByteBuffer buffer = ByteBuffer.wrap(bytes);
-          return Serder.get(buffer);
+          return new Segment(buffer.getLong(), buffer.getLong(), buffer.getLong(), 
+              buffer.getDouble(), buffer.getInt(), buffer.getInt(), buffer.getInt(),
+              buffer.hasRemaining() ? buffer.getLong() : null);
         }
         @Override
         public void close() { }
