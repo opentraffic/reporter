@@ -200,9 +200,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       if segment_id is None and internal == False:
         unassociated_seg_count += 1
 
-    if len(datastore_out['reports']) == 0:
-      del datastore_out['reports']
-
     data = {'stats':{'successful_matches':{}, 'unreported_matches':{}, 'match_errors':{}}}
     if shape_used:
       data['shape_used'] = shape_used

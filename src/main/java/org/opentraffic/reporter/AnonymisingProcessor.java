@@ -25,6 +25,7 @@ import org.apache.kafka.streams.state.Stores;
 import org.apache.log4j.Logger;
 
 public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> {
+  
   private final static Logger logger = Logger.getLogger(AnonymisingProcessor.class);
   private static final String ANONYMISER_STORE_NAME = "anonymise";
   public static StateStoreSupplier<?> GetStore() {
@@ -33,6 +34,7 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
         withValues(new Segment.Serder()).
         inMemory().build();
   }
+
   private final int privacy;      //number of observations required to make it into a tile
   private final long interval;    //how frequently to dump tiles to external location
   private final int quantisation; //what is the resolution for time buckets
@@ -114,14 +116,10 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
             }
             segment.appendToStringBuffer(tile);
           }
-          //we purge the entire key value store, otherwise kvstore would have an enourmous long tail
-          //the store has no clear or pop or front methods, you cant delete while you iterate
-          //maybe you could close it and make a new one but the api suggests against doing that
-          it.close();
-          store.delete(key);
-          it = store.all();
         }
         it.close();
+        //we purge the entire key value store, otherwise kvstore would have an enourmous long tail
+        store.flush();
         
         //jettison the tiles to external storage
         String file_name = source + '.' + UUID.randomUUID().toString();

@@ -43,7 +43,7 @@ services:
       KAFKA_ADVERTISED_PORT: 9092
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       #these topics map directly to those in the kafka application
-      KAFKA_CREATE_TOPICS: "raw:1:1,formatted:1:1,batched:4:1"
+      KAFKA_CREATE_TOPICS: "raw:1:1,formatted:4:1,batched:4:1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 

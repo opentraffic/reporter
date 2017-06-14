@@ -1,8 +1,6 @@
 package org.opentraffic.reporter;
 
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.ListIterator;
+import java.util.HashSet;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.kafka.streams.KeyValue;
@@ -22,7 +20,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
   
   private static final String BATCH_STORE_NAME = "batch";
   public static StateStoreSupplier<?> GetStore() {
-    return Stores.create(BATCH_STORE_NAME).withStringKeys().withValues(new Batch.Serder()).inMemory().build();
+     return Stores.create(BATCH_STORE_NAME).withStringKeys().withValues(new Batch.Serder()).inMemory().build();
   }
   
   //TODO: get these magic constants from arguments
@@ -43,24 +41,17 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
     return new Processor<String, Point>() {
       private ProcessorContext context;
       private KeyValueStore<String, Batch> store;
-      //TODO: move these timing notions into the key value store
-      private LinkedList<Pair<Long, String> > time_to_key;
-      private HashMap<String, ListIterator<Pair<Long, String> > > key_to_time_iter;
   
       @SuppressWarnings("unchecked")
       @Override
       public void init(ProcessorContext context) {
         this.context = context;
         this.store = (KeyValueStore<String, Batch>) context.getStateStore(BATCH_STORE_NAME);
-        this.time_to_key = new LinkedList<Pair<Long, String> >();
-        this.key_to_time_iter = new HashMap<String, ListIterator<Pair<Long, String> > >();
+        context.schedule(SESSION_GAP * 2);
       }
   
       @Override
       public void process(String key, Point point) {
-        //clean up stale keys
-        clean(key);
-        
         //get this batch out of storage and update it
         Batch batch = store.delete(key);
         if(batch == null) {
@@ -76,43 +67,34 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         }
         
         //put it back if it has something
-        if(batch.points.size() > 0)
+        if(batch.points.size() > 0) {
+          batch.last_update = context.timestamp();
           this.store.put(key, batch);
-        //remove all traces if not
-        else {
-          ListIterator<Pair<Long, String> > iter = key_to_time_iter.get(key);
-          time_to_key.remove(iter);
         }
         
         //move on
         context.commit();
       }
       
-      private void clean(String key) {
-        //TODO: this might be too blunt, processing delay could cause us to evict stuff from the store
-        //below we use the context's timestamp to get the time of the current record we are processing
-        //if processing delay occurs this timestamp will deviate from the current time but will still be
-        //relative to the time stored in our oldest first list. we may also want to move this potential
-        //bottleneck to the punctuate function and do it on a regular interval although the timestamp
-        //semantics do change in that configuration
-
-        //go through the keys in stalest first order keys
-        while(time_to_key.size() > 0 && context.timestamp() - time_to_key.getFirst().first > SESSION_GAP) {
-          //this fogey hasn't been producing much, off to the glue factory
-          Pair<Long, String> time_key = time_to_key.pop();
-          Batch batch = this.store.get(time_key.second);
-          //TODO: dont actually report here, instead insert into a queue that a thread can drain asynchronously
-          forward(batch.report(time_key.second, url, 0, 2, 0));
-          key_to_time_iter.remove(time_key.second);          
+      @Override
+      public void punctuate(long timestamp) {
+        //find which ones need to go
+        HashSet<String> to_delete = new HashSet<String>();
+        KeyValueIterator<String, Batch> it = store.all();
+        while(it.hasNext()) {
+          KeyValue<String, Batch> kv = it.next();
+          if(timestamp - kv.value.last_update > SESSION_GAP)
+            to_delete.add(kv.key);
         }
+        it.close();
         
-        //mark this key as recently having an update
-        ListIterator<Pair<Long, String> > iter = key_to_time_iter.get(key);
-        if(iter != null)
-          time_to_key.remove(iter);
-        time_to_key.add(new Pair<Long, String>(context.timestamp(), key));
-        iter = time_to_key.listIterator(time_to_key.size() - 1); //O(1)
-        key_to_time_iter.put(key,  iter);
+        //off to the glue factory with you guys
+        for(String key : to_delete) {
+          //TODO: dont actually report here, instead insert into a queue that a thread can drain asynchronously
+          logger.debug("Evicting " + key + " as it was stale");
+          Batch batch = store.delete(key);
+          forward(batch.report(key, url, 0, 2, 0));
+        }
       }
       
       private void forward(JsonNode result) {
@@ -135,28 +117,19 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
                   (segment.next_id != null ? Long.toString(segment.next_id) : "null"), segment);
             }
             catch(Exception e) {
-              logger.error("Unusable datastore segment pair: " + report.toString() + " (" + e.getMessage() + ")");
+              logger.error("Unusable reported segment pair: " + report.toString() + " (" + e.getMessage() + ")");
             }
           }
+        }//we got something unexpected
+        else if(result != null) {
+          logger.error("Unusable report " + result.toString());
         }
-      }
-  
-      @Override
-      public void punctuate(long timestamp) {
-        //we dont really want to do anything on a regular interval
       }
   
       @Override
       public void close() {
         //take care of the rest of the stuff thats hanging around
-        KeyValueIterator<String, Batch> iter = store.all();
-        while(iter.hasNext()) {
-          KeyValue<String, Batch> kv = iter.next();
-          kv.value.report(kv.key, url, 0, 2, 0);
-        }
-        iter.close();
-        //clean up
-        store.flush();
+        punctuate(Long.MAX_VALUE);
       }
     };
   }

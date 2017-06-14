@@ -14,11 +14,11 @@ import org.apache.kafka.common.serialization.Serializer;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 
 public class Batch {
   
   public float max_separation; //the maximum distance between the first an any other point
+  public long last_update;     //stream time of when this batch was last touched
   public List<Point> points;
   
   public Batch() {
@@ -105,9 +105,10 @@ public class Batch {
         public byte[] serialize(String topic, Batch batch) {
           if(batch == null)
             return null;
-          ByteBuffer buffer = ByteBuffer.allocate(4 + 4 + Point.SIZE * batch.points.size());
+          ByteBuffer buffer = ByteBuffer.allocate(4 + 4 + 8 + Point.SIZE * batch.points.size());
           buffer.putInt(batch.points.size());
           buffer.putFloat(batch.max_separation);
+          buffer.putLong(batch.last_update);
           for(Point p : batch.points)
             Point.Serder.put(p, buffer);
           return buffer.array();
@@ -131,6 +132,7 @@ public class Batch {
           Batch batch = new Batch();
           batch.points = new ArrayList<Point>(count);
           batch.max_separation = buffer.getFloat();
+          batch.last_update = buffer.getLong();
           for(int i = 0; i < count; i++)
             batch.points.add(Point.Serder.get(buffer));          
           return batch;
