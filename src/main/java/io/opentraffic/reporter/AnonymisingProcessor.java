@@ -1,4 +1,4 @@
-package org.opentraffic.reporter;
+package io.opentraffic.reporter;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -110,10 +110,13 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
             String tile_name =  Long.toString(key.time_range_start) + '_' +
               Long.toString(key.time_range_start + quantisation - 1) + '/' + Long.toString(key.tile_id);
             StringBuffer tile = tiles.get(tile_name);
+            //there wasnt already a tile made
             if(tile == null) {
-              tile = new StringBuffer();
+              //make one with the column layout so someone can read this
+              tile = new StringBuffer(Segment.columnLayout());
               tiles.put(tile_name, tile);
             }
+            //add this entry onto the tile
             segment.appendToStringBuffer(tile);
           }
         }

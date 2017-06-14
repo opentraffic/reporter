@@ -1,4 +1,4 @@
-package org.opentraffic.reporter;
+package io.opentraffic.reporter;
 
 import java.util.HashSet;
 

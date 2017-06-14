@@ -1,4 +1,4 @@
-package org.opentraffic.reporter;
+package io.opentraffic.reporter;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -60,7 +60,12 @@ public class Segment {
     return id & 0x1FFFFFFL;
   }
   
+  public static String columnLayout() {
+    return "segment_id,next_segment_id,duration,length,queue_length,count,minimum_timestamp,maximum_timestamp";
+  }
+  
   public void appendToStringBuffer(StringBuffer buffer) {
+    buffer.append('\n');
     buffer.append(Long.toString(id)); buffer.append(',');
     if(next_id != null)
       buffer.append(Long.toString(next_id));
@@ -68,8 +73,9 @@ public class Segment {
     buffer.append(Double.toString(duration)); buffer.append(',');
     buffer.append(Integer.toString(length)); buffer.append(',');
     buffer.append(Integer.toString(queue)); buffer.append(',');
+    buffer.append(Integer.toString(count)); buffer.append(',');
     buffer.append(Double.toString(min)); buffer.append(',');
-    buffer.append(Double.toString(max)); buffer.append('\n');
+    buffer.append(Double.toString(max));
   }
 
   public static class Serder implements Serde<Segment> {
