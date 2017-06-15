@@ -117,7 +117,7 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
               tiles.put(tile_name, tile);
             }
             //add this entry onto the tile
-            segment.appendToStringBuffer(tile);
+            segment.appendToStringBuffer(tile, source);
           }
         }
         it.close();

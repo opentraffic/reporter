@@ -61,21 +61,24 @@ public class Segment {
   }
   
   public static String columnLayout() {
-    return "segment_id,next_segment_id,duration,length,queue_length,count,minimum_timestamp,maximum_timestamp";
+    return "segment_id,next_segment_id,duration,count,length,queue_length,minimum_timestamp,maximum_timestamp,source,vehicle_type";
   }
   
-  public void appendToStringBuffer(StringBuffer buffer) {
+  public void appendToStringBuffer(StringBuffer buffer, String source) {
     buffer.append('\n');
     buffer.append(Long.toString(id)); buffer.append(',');
     if(next_id != null)
-      buffer.append(Long.toString(next_id));
+      buffer.append(next_id);
     buffer.append(',');
     buffer.append(Double.toString(duration)); buffer.append(',');
+    buffer.append(Integer.toString(count)); buffer.append(',');
     buffer.append(Integer.toString(length)); buffer.append(',');
     buffer.append(Integer.toString(queue)); buffer.append(',');
-    buffer.append(Integer.toString(count)); buffer.append(',');
-    buffer.append(Double.toString(min)); buffer.append(',');
-    buffer.append(Double.toString(max));
+    buffer.append(Long.toString(min)); buffer.append(',');
+    buffer.append(Long.toString(max)); buffer.append(',');
+    buffer.append(source); buffer.append(',');
+    //TODO: parse this in the formatting processor or get it as a program argument
+    buffer.append("AUTO");
   }
 
   public static class Serder implements Serde<Segment> {
