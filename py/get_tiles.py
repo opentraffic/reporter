@@ -17,6 +17,7 @@ maxy_ = 90
 
 #global vars
 boundingbox = None
+suffix = None
 
 class BoundingBox(object):
 
@@ -89,35 +90,40 @@ class Tiles(object):
     #if it starts with a zero the pow trick doesn't work
     if level == 0:
       file_suffix = '{:,}'.format(int(pow(10, max_length)) + tile_id).replace(',', '/')
-      file_suffix += ".gph"
+      file_suffix += "."
+      file_suffix += suffix
       file_suffix = "0" + file_suffix[1:]
       return file_suffix
 
     #it was something else
     file_suffix = '{:,}'.format(level * int(pow(10, max_length)) + tile_id).replace(',', '/')
-    file_suffix += ".gph"
+    file_suffix += "."
+    file_suffix += suffix
     return file_suffix
 
 def check_args(argv):
 
    global boundingbox
+   global suffix
    try:
-      opts, args = getopt.getopt(sys.argv[1:], "h:b:", ["help=", "bbox="])
+      opts, args = getopt.getopt(sys.argv[1:], "h:b:s:", ["help=", "bbox=", "suffix="])
    except getopt.GetoptError:
-      print('tiles.py -b lower_left_lng_lat, upper_right_lng_lat')
-      print('tiles.py -b -74.251961,40.512764,-73.755405,40.903125')
+      print('tiles.py -b lower_left_lng_lat, upper_right_lng_lat -s file_suffix')
+      print('tiles.py -b -74.251961,40.512764,-73.755405,40.903125 -s json')
       sys.exit(2)
    for opt, arg in opts:
       if opt in ("-h", "--help"):
-         print('tiles.py -b lower_left_lng_lat, upper_right_lng_lat')
-         print('tiles.py -b -74.251961,40.512764,-73.755405,40.903125')
+         print('tiles.py -b lower_left_lng_lat, upper_right_lng_lat -s file_suffix')
+         print('tiles.py -b -74.251961,40.512764,-73.755405,40.903125 -s json')
          sys.exit()
       elif opt in ("-b", "--bbox"):
          boundingbox = arg
+      elif opt in ("-s", "--suffix"):
+         suffix = arg
 
-   if (boundingbox == None):
-      print('tiles.py -b lower_left_lng_lat, upper_right_lng_lat')
-      print('tiles.py -b -74.251961,40.512764,-73.755405,40.903125')
+   if (boundingbox == None or suffix == None):
+      print('tiles.py -b lower_left_lng_lat, upper_right_lng_lat -s file_suffix')
+      print('tiles.py -b -74.251961,40.512764,-73.755405,40.903125 -s json')
       sys.exit()
 
 #this is the entry point to the program
