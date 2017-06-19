@@ -12,6 +12,7 @@ import java.util.Map.Entry;
 import java.util.UUID;
 
 import org.apache.commons.cli.CommandLine;
+import org.apache.http.Header;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.kafka.streams.KeyValue;
@@ -40,26 +41,41 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
   private final int quantisation; //what is the resolution for time buckets
   private final String source;    //how we'll identify ourselves to the external datastore
   private final String output;    //where should the output go
+  private final boolean bucket;   //if the output should go to an s3 bucket
+  private final String aws_key;   //needed for s3 output
+  private final String aws_secret;//needed for s3 output
   
 
   public AnonymisingProcessor(CommandLine cmd) {
-    this.privacy = Integer.parseInt(cmd.getOptionValue("privacy"));
+    privacy = Integer.parseInt(cmd.getOptionValue("privacy"));
     if(privacy < 1)
       throw new RuntimeException("Need a privacy parameter of 1 or more");
-    this.interval = 1000L * Integer.parseInt(cmd.getOptionValue("flush-interval"));
+    interval = 1000L * Integer.parseInt(cmd.getOptionValue("flush-interval"));
     if(interval < 60)
       throw new RuntimeException("Need an interval parameter of 60 or more");
-    this.quantisation = Integer.parseInt(cmd.getOptionValue("quantisation"));
+    quantisation = Integer.parseInt(cmd.getOptionValue("quantisation"));
     if(quantisation < 60)
       throw new RuntimeException("Need quantisation parameter of 60 or more");
-    this.output = cmd.getOptionValue("output-location");
-    this.source = cmd.getOptionValue("source");
+    output = cmd.getOptionValue("output-location");
+    source = cmd.getOptionValue("source");
     
-    //where will the tiles go    
+    //if its s3    
     File f = new File(output);
     boolean http = output.startsWith("http://") || output.startsWith("https://");
-    if(!http && !f.isDirectory() && !f.mkdirs())
-      throw new RuntimeException("Cannot be created as a directory");
+    if(!http && !f.isDirectory()) {
+      bucket = true;
+      Map<String, String> env = System.getenv();
+      aws_key = env.get("AWS_ACCESS_KEY_ID");
+      aws_secret = cmd.getOptionValue("AWS_SECRET_ACCESS_KEY");
+      if(aws_key == null || aws_secret == null)
+        throw new RuntimeException("Cannot PUT to s3 bucket " + output + " without environment variables"
+            + " AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY");
+    }//not s3
+    else {
+      bucket = false;
+      aws_key = null;
+      aws_secret = null;
+    }
   }
 
   @Override
@@ -108,7 +124,7 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
           Segment segment = kv.value;
           if(kv.value.count >= privacy) {
             String tile_name =  Long.toString(key.time_range_start) + '_' +
-              Long.toString(key.time_range_start + quantisation - 1) + '/' + Long.toString(key.tile_id);
+              Long.toString(key.time_range_start + quantisation - 1) + '/' + Long.toString(key.tile_level) + '/' + Long.toString(key.tile_id);
             StringBuffer tile = tiles.get(tile_name);
             //there wasnt already a tile made
             if(tile == null) {
@@ -129,14 +145,19 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
         Iterator<Entry<String, StringBuffer> > tile_it = tiles.entrySet().iterator();
         while(tile_it.hasNext()) {
           Entry<String, StringBuffer> kv = tile_it.next();
-          //post it
-          if(output.startsWith("http://") || output.startsWith("https://")) {
-            logger.debug("POSTing tile to " + output + '/' + kv.getKey() + '/' + file_name);
-            StringEntity body = new StringEntity(kv.getValue().toString(), ContentType.create("text/plain", Charset.forName("UTF-8")));
-            HttpClient.POST(output + '/' + file_name, body);
-          }//write a new file in a dir
-          else {
-            try {
+          try {
+            //put it to s3
+            if(bucket) {
+              logger.debug("PUTting tile to " + output + '/' + kv.getKey() + '/' + file_name);
+              StringEntity body = new StringEntity(kv.getValue().toString(), ContentType.create("text/plain", Charset.forName("UTF-8")));
+              HttpClient.AwsPUT(output, kv.getKey() + '/' + file_name, body, aws_key, aws_secret);
+            }//post it to non s3
+            else if(output.startsWith("http://") || output.startsWith("https://")) {
+              logger.debug("POSTing tile to " + output + '/' + kv.getKey() + '/' + file_name);
+              StringEntity body = new StringEntity(kv.getValue().toString(), ContentType.create("text/plain", Charset.forName("UTF-8")));
+              HttpClient.POST(output + '/' + file_name, body);
+            }//write a new file in a dir
+            else {
               logger.debug("Writing tile to " + output + '/' + kv.getKey() + '/' + file_name);
               File dir = new File(output + '/' + kv.getKey());
               dir.mkdirs();
@@ -146,9 +167,9 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
               writer.flush();
               writer.close();
             }
-            catch(Exception e) {
-              logger.error("Couldn't write tile: " + e.getMessage());
-            }
+          }
+          catch(Exception e) {
+            logger.error("Couldn't write tile: " + e.getMessage());
           }
         }
         

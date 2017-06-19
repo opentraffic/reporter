@@ -2,30 +2,78 @@ package io.opentraffic.reporter;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Base64;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
 import org.apache.log4j.Logger;
 
 public final class HttpClient {
   private final static Logger logger = Logger.getLogger(HttpClient.class);
+  private static final String HMAC_SHA1_ALGORITHM = "HmacSHA1";
+  public static String MakeAwsSignature(String sign_me, String secret) throws NoSuchAlgorithmException, InvalidKeyException{
+    SecretKeySpec signingKey = new SecretKeySpec(secret.getBytes(), HMAC_SHA1_ALGORITHM);
+    Mac mac = Mac.getInstance(HMAC_SHA1_ALGORITHM);
+    mac.init(signingKey);
+    return Base64.getEncoder().encodeToString(mac.doFinal(sign_me.getBytes()));
+  }
+  
+  public static String PUT(String url, StringEntity body) {
+    return PUT(url, body, new Header[0]);
+  }
+  public static String AwsPUT (String bucket, String location, StringEntity body, String key, String secret) throws NoSuchAlgorithmException, InvalidKeyException {
+    //http://docs.aws.amazon.com/AmazonS3/latest/dev/RESTAuthentication.html#RESTAuthenticationRequestCanonicalization
+    String resource = '/' + bucket + '/' + location;
+    String date = java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("GMT")));
+    String sign_me = "PUT\n\n" + body.getContentType().getValue() + '\n' + date+ '\n' + resource;
+    String signature = MakeAwsSignature(sign_me, secret);
+    Header[] headers = {
+      new BasicHeader("Host", bucket + ".s3.amazonaws.com"),
+      new BasicHeader("Date", date),
+      new BasicHeader("Authorization", "AWS " + key + ':' + signature)
+    };
+    return PUT(bucket + ".s3.amazonaws.com/" + location, body, headers);
+  }
+  public static String PUT(String url, StringEntity body, Header[] headers) {
+    HttpEntityEnclosingRequestBase request = new HttpPut(url);
+    request.setHeaders(headers);
+    request.setEntity(body);
+    return DO(request);
+  }
   public static String POST(String url, StringEntity body) {
+    return PUT(url, body, new Header[0]);
+  }
+  public static String POST(String url, StringEntity body, Header[] headers) {
+    HttpEntityEnclosingRequestBase request = new HttpPost(url);
+    request.setHeaders(headers);
+    request.setEntity(body);
+    return DO(request);
+  }
+  public static String DO(HttpEntityEnclosingRequestBase request) {
     //try to get the response and parse it
     CloseableHttpResponse response = null;
     String v = null;
     try {
-      //build the request
-      CloseableHttpClient client = HttpClients.createDefault();
-      HttpPost post = new HttpPost(url);
-      post.setEntity(body);
       //make the request
-      response = client.execute(post);
+      CloseableHttpClient client = HttpClients.createDefault();
+      response = client.execute(request);
       HttpEntity response_entity = response.getEntity();
       InputStream stream = response_entity.getContent();
       v = IOUtils.toString(stream, StandardCharsets.UTF_8);
@@ -33,11 +81,10 @@ public final class HttpClient {
       EntityUtils.consume(response_entity);
     }//swallow anything
     catch(Exception e) {
-      logger.error("Couldn't POST to " + url);
+      logger.error("Couldn't POST to " + request.getURI());
     }//always close
-    finally {
-      if(response != null) 
-        try { response.close(); } catch(Exception e){ }
+    finally { 
+      try { response.close(); } catch(Exception e){ }
     }
     return v;
   }

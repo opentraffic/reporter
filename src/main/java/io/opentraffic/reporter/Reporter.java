@@ -85,7 +85,9 @@ public class Reporter {
     source.setRequired(true);
     
     Option output = new Option("o", "output-location", true, "A location to put the output histograms. "
-        + "This can either be an http://location to POST to or /a/directory to write files to.");
+        + "This can either be an http://location to POST to or /a/directory to write files to. "
+        + "If its neither of those then its assumed to be an s3 bucket and you'll need to have "
+        + "the environment variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY properly set.");
     output.setRequired(true);
 
     Option duration = new Option("d", "duration", true, "How long to run the program in seconds, defaults to (essentially) forever.");

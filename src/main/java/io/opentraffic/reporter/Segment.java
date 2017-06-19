@@ -56,8 +56,12 @@ public class Segment {
   }
   
   //first 3 bits are hierarchy level then 22 bits of tile id. the rest we want zero'd out
-  public long getTile() {    
-    return id & 0x1FFFFFFL;
+  public long getTileId() {    
+    return (id >> 3) & 0x3FFFFF;
+  }
+  
+  public long getTileLevel() {
+    return id & 0x7;
   }
   
   public static String columnLayout() {
