@@ -45,7 +45,7 @@ rm -rf ${OUTPUT_DIRECTORY}
 mkdir -p ${OUTPUT_DIRECTORY}
 
 echo "[INFO] Building tile list."
-./get_tiles.py -b ${BBOX} > files.txt
+./get_tiles.py -b ${BBOX} -s json > files.txt
 catch_exception
 
 echo "[INFO] Downloading tiles."
