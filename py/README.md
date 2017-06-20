@@ -18,7 +18,7 @@ We have created a script that gives you the ability to fetch a subset of Valhall
 
 Example Usage: ./download_tiles.sh -74.251961,40.512764,-73.755405,40.903125 https://thewebsite.com/dir /data/tiles 5 false
 
-If cURL reports and error the script will report on what tiles were not downloaded.  This could be due issues from connection issues to just the fact that tile no longer exists.  For example://
+If cURL reports and error the script will report on what tiles were not downloaded.  This could be due to issues from connection problems, to a high number of processes being set, or just the fact that tile no longer exists.  For example://
 
 [WARN] https://thewebsite.com/dir/000/753/542.gph was not found!
 
