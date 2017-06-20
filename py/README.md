@@ -1,6 +1,6 @@
 # Downloading Tiles
 
-We have created a script that gives you the ability to fetch a subset of Valhalla routing graph tiles with OSMLR associations.  The script uses a bounding box to determine the list of graph tiles that intersect with the bounding box. These Valhalla tiles are needed to perform map-matching within the Open Traffic Reporter.
+We have created a script that gives you the ability to fetch a subset of Valhalla routing tiles.  The script uses a bounding box to determine the list of graph tiles that intersect with the bounding box.
 
 ### Run via the command line
 
@@ -16,9 +16,9 @@ We have created a script that gives you the ability to fetch a subset of Valhall
 
 `Tar_Output`:  True|False: do you want the tiles tar'd up after they are download? This is an optional parameter that defaults to False.  
 
-Example Usage: ./download_tiles.sh -74.251961,40.512764,-73.755405,40.903125 https://thewebsite.com/dir /data/tiles 10 false
+Example Usage: ./download_tiles.sh -74.251961,40.512764,-73.755405,40.903125 https://thewebsite.com/dir /data/tiles 5 false
 
-If cURL reports and error the script will report on what tiles were not downloaded.  This could be due issues from connection issues to just the fact that tile no longer exists.  For example://
+If cURL reports and error the script will report on what tiles were not downloaded.  This could be due to issues from connection problems, to a high number of processes being set, or just the fact that tile no longer exists.  For example://
 
 [WARN] https://thewebsite.com/dir/000/753/542.gph was not found!
 
