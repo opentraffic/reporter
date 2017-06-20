@@ -58,7 +58,7 @@ public final class HttpClient {
     return DO(request);
   }
   public static String POST(String url, StringEntity body) {
-    return PUT(url, body, new Header[0]);
+    return POST(url, body, new Header[0]);
   }
   public static String POST(String url, StringEntity body, Header[] headers) {
     HttpEntityEnclosingRequestBase request = new HttpPost(url);

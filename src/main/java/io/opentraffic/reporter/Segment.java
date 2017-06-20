@@ -15,11 +15,11 @@ public class Segment {
   public static long INVALID_SEGMENT_ID = 0x3fffffffffffL;
   public long id;         //main segment id
   public long min, max;   //epoch seconds
-  public double duration; //epoch seconds
+  public int duration;    //epoch seconds
   public int length;      //meters
   public int queue;       //meters
   public int count;       //how many
-  public static final int SIZE = 8 + 8 + 8 + 8 + 4 + 4 + 4;
+  public static final int SIZE = 8 + 8 + 8 + 4 + 4 + 4 + 4;
   public Long next_id;    //optional next
   
   public Segment(long id, Long next_id, double start, double end, int length, int queue) {
@@ -27,13 +27,13 @@ public class Segment {
     this.next_id = next_id;
     this.min = (long)Math.floor(start);
     this.max = (long)Math.ceil(end);
-    this.duration = max - min;
+    this.duration = (int)Math.round(end - start);
     this.length = length;
     this.queue = queue;
     this.count = 1;
   }
   
-  public Segment(long id, long min, long max, double duration, int length, int queue, int count,  Long next_id) {
+  public Segment(long id, long min, long max, int duration, int length, int queue, int count,  Long next_id) {
     this.id = id;
     this.next_id = next_id;
     this.min = min;
@@ -49,7 +49,7 @@ public class Segment {
     double b = s.count/(this.count + s.count);
     this.min = Math.min(this.min, s.min);
     this.max = Math.max(this.max, s.max);
-    this.duration = this.duration * a + s.duration * b;
+    this.duration = (int)Math.round(this.duration * a + s.duration * b);
     this.length = (int)Math.round(this.length * a + s.length * b);
     this.queue = (int)Math.round(this.queue * a + s.queue * b);    
     this.count += s.count;
@@ -74,7 +74,7 @@ public class Segment {
     if(next_id != null)
       buffer.append(next_id);
     buffer.append(',');
-    buffer.append(Double.toString(duration)); buffer.append(',');
+    buffer.append(Integer.toString(duration)); buffer.append(',');
     buffer.append(Integer.toString(count)); buffer.append(',');
     buffer.append(Integer.toString(length)); buffer.append(',');
     buffer.append(Integer.toString(queue)); buffer.append(',');
@@ -103,7 +103,7 @@ public class Segment {
           buffer.putLong(s.id);
           buffer.putLong(s.min);
           buffer.putLong(s.max);
-          buffer.putDouble(s.duration);
+          buffer.putInt(s.duration);
           buffer.putInt(s.length);
           buffer.putInt(s.queue);
           buffer.putInt(s.count);
@@ -126,7 +126,7 @@ public class Segment {
             return null;
           ByteBuffer buffer = ByteBuffer.wrap(bytes);
           return new Segment(buffer.getLong(), buffer.getLong(), buffer.getLong(), 
-              buffer.getDouble(), buffer.getInt(), buffer.getInt(), buffer.getInt(),
+              buffer.getInt(), buffer.getInt(), buffer.getInt(), buffer.getInt(),
               buffer.hasRemaining() ? buffer.getLong() : null);
         }
         @Override
