@@ -128,7 +128,12 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     #Compute values to send to the datastore: start time for a segment
     #next segment (if any), start time at the next segment (end time of segment if no next segment)
-    segments['mode'] = 'auto'
+    match_options = trace.get('match_options', None)
+    if match_options is None:
+      segments['mode'] = 'auto'
+    elif match_options.get('mode') is not None:
+      segments['mode'] = match_options.get('mode')
+
     prior_segment_id = None
     first_seg = True
     idx, successful_count, unreported_count, successful_length, unreported_length, discontinuities_count, invalid_speed_count, unassociated_seg_count = [0 for _ in range(8)]
@@ -137,6 +142,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     datastore_out['reports'] = []
     while (idx <= last_idx):
       seg = segments['segments'][idx]
+
       segment_id = seg.get('segment_id')
       way_ids = seg.get('way_ids')
       start_time = seg.get('start_time')
