@@ -1,8 +1,8 @@
 #!/bin/bash
 
 if [ -z "$*" ]; then
-  echo "Usage: $0 Bounding_Box URL Output_Directory Number_of_Processes file_type <Tar_Output>"
-  echo "Example Usage: $0 -74.251961,40.512764,-73.755405,40.903125 https://thewebsite.com/dir /data/tiles 10 json|gph|osmlr false"
+  echo "Usage: $0 Bounding_Box URL Output_Directory Number_of_Processes <Tar_Output>"
+  echo "Example Usage: $0 -74.251961,40.512764,-73.755405,40.903125 https://thewebsite.com/dir /data/tiles 5 false"
   echo "NOTE:  Output directory will be deleted and recreated."
   exit 1
 fi
@@ -18,7 +18,7 @@ BBOX=$1
 URL=$2
 OUTPUT_DIRECTORY=$3
 NUMBER_PROCESSES=$4
-FILE_TYPE=$5
+FILE_TYPE="gph"
 TAR_OUTPUT=${6:-"false"}
 
 # these have to exist
@@ -34,11 +34,6 @@ fi
 
 if [ -z "${NUMBER_PROCESSES}" ]; then
   echo "[ERROR] Number of processes is not set. Exiting."
-  exit 1
-fi
-
-if [ -z "${FILE_TYPE}" ]; then
-  echo "[ERROR] File Type is not set. Exiting."
   exit 1
 fi
 
