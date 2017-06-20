@@ -142,7 +142,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     datastore_out['reports'] = []
     while (idx <= last_idx):
       seg = segments['segments'][idx]
-
       segment_id = seg.get('segment_id')
       way_ids = seg.get('way_ids')
       start_time = seg.get('start_time')
