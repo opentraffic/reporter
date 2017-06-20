@@ -108,7 +108,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
   #report some segments to the datastore
   def report(self, trace):
- 
     #ask valhalla to give back OSMLR segments along this trace
     result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
     segments = json.loads(result)
@@ -155,7 +154,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
       level = (segment_id & 0x7) if segment_id != None else -1
 
       #Conditionally output prior segment if it is complete and the level is configured to be reported
-      if prior_segment_id != None and prior_length > 0:
+      if prior_segment_id != None and prior_length > 0 and internal != True:
         if prior_level in thread_local.report_levels:
           #Add the prior segment.
           report = {'id': prior_segment_id, 't0' : prior_start_time, 't1' : (start_time if level in thread_local.transition_levels else prior_end_time), 'length' : prior_length, 'queue_length' : prior_queue_length }
