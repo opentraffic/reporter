@@ -19,7 +19,7 @@ URL=$2
 OUTPUT_DIRECTORY=$3
 NUMBER_PROCESSES=$4
 FILE_TYPE="gph"
-TAR_OUTPUT=${6:-"false"}
+TAR_OUTPUT=${5:-"false"}
 
 # these have to exist
 if [ -z "${BBOX}" ]; then
