@@ -13,7 +13,7 @@ To build/run the [reporter service](https://github.com/opentraffic/reporter) via
 ```bash
 #get some osmlr enabled routing tiles for your region via the download_tiles.sh located in the py directory.  
 ./download_tiles.sh `Bounding_Box` `URL` `Output_Directory` `Number_of_Processes` `Tar_Output`
-#The documentation can be found <pre> [here](https://github.com/opentraffic/reporter/tree/dev/py) </pre>
+#The documentation can be found <pre > [here](https://github.com/opentraffic/reporter/tree/dev/py) </pre >
 #move your tar to some place
 mv tiles.tar /some/path/to/tiles.tar
 #before we start the reporter you'll need the format of your incoming messages
