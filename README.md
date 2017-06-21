@@ -45,8 +45,9 @@ If you already have a kafka stream setup then you'll only need to point the repo
 #### Just the reporter docker containers
 
 ```bash
-#get some osmlr enabled routing tiles for your region
-TODO: @gknisely show how to get a bbox and make a tar
+#get some osmlr enabled routing tiles for your region via the download_tiles.sh located in the py directory.  
+./download_tiles.sh `Bounding_Box` `URL` `Output_Directory` `Number_of_Processes` `Tar_Output`
+#The documentation can be found here: https://github.com/opentraffic/reporter/tree/dev/py
 #move your tar to some place
 mv tiles.tar /some/path/to/tiles.tar
 #need a bridged docker network so the kafka job can talk to the matcher service
