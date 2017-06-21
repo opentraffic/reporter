@@ -16,7 +16,7 @@ We have created a script that gives you the ability to fetch a subset of Valhall
 
 `Tar_Output`:  True|False: do you want the tiles tar'd up after they are download? This is an optional parameter that defaults to False.  
 
-Example Usage: ./download_tiles.sh -74.251961,40.512764,-73.755405,40.903125 https://s3.amazonaws.com/reporter-tiles/planet_2017_06_16-14_39_57 /data/tiles 5 false
+Example Usage: ./download_tiles.sh -74.251961,40.512764,-73.755405,40.903125 https://s3.amazonaws.com/reporter-tiles/planet_2017_06_16-14_39_57 /data/tiles 5 true
 
 If cURL reports and error the script will report on what tiles were not downloaded.  This could be due to issues from connection problems, to a high number of processes being set, or just the fact that tile no longer exists.  For example://
 
