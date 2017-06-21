@@ -79,8 +79,9 @@ docker logs --follow ${reporterpy}
 Say you want to make changes to the reporter, its a real pain to debug this through docker so lets not. Lets run those bits of the code directly:
 
 ```bash
-#get some osmlr enabled routing tiles for your region
-TODO: @gknisely show how to get a bbox and make a tar
+#get some osmlr enabled routing tiles for your region via the download_tiles.sh located in the py directory.  
+./download_tiles.sh `Bounding_Box` `URL` `Output_Directory` `Number_of_Processes` `Tar_Output`
+#The documentation can be found here: https://github.com/opentraffic/reporter/tree/dev/py
 #move your tar to some place
 mv tiles.tar /some/path/to/tiles.tar
 #install valhalla (or build it locally)
