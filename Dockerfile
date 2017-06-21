@@ -38,6 +38,7 @@ RUN ln -s /reporter/target/reporter-kafka /usr/local/bin/reporter-kafka
 RUN valhalla_build_config \
       --mjolnir-tile-dir ${MATCHER_DATA_DIR} \
       --mjolnir-tile-extract ${MATCHER_DATA_DIR}/${MATCHER_TILE_EXTRACT} \
+      --meili-mode auto \
       >${MATCHER_CONF_FILE}
 
 # cleanup

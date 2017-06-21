@@ -81,7 +81,7 @@ public final class HttpClient {
       EntityUtils.consume(response_entity);
     }//swallow anything
     catch(Exception e) {
-      logger.error("Couldn't POST to " + request.getURI());
+      logger.error("Couldn't " + request.getMethod() + " to " + request.getURI() + " -> " + e.getMessage());
     }//always close
     finally { 
       try { response.close(); } catch(Exception e){ }

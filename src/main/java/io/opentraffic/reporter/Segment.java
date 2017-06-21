@@ -45,8 +45,8 @@ public class Segment {
   }
   
   public void combine(Segment s) {
-    double a = this.count/(this.count + s.count);
-    double b = s.count/(this.count + s.count);
+    double a = this.count/(double)(this.count + s.count);
+    double b = s.count/(double)(this.count + s.count);
     this.min = Math.min(this.min, s.min);
     this.max = Math.max(this.max, s.max);
     this.duration = (int)Math.round(this.duration * a + s.duration * b);
