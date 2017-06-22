@@ -28,7 +28,7 @@ mv tiles.tar /some/path/to/tiles.tar
 #  note the last argument of both is a date string format, if your data is already an epoch timestamp you dont need to provide it
 #TODO: fix the docker-compose.yml to actually supply DATASTORE_URL
 #start up all the containers
-FORMATTER='sv,\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' DATAPATH=/some/path/to/data docker-compose up
+FORMATTER='sv,\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' DATAPATH=/some/path/to docker-compose up
 #shovel messages into kafka from your local data source
 py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 YOUR_FLAT_FILE
 #tail some docker logs

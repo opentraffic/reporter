@@ -80,8 +80,8 @@ docker run \
   -t \
   --net opentraffic \
   --name reporter-kafka \
-  reporter:latest \
   -v ./results:/results \
+  reporter:latest \
   /usr/local/bin/reporter-kafka -b ${docker_ip}:${kafka_port} -t raw,formatted,batched -f ',sv,\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' -u http://reporter-py:${reporter_port}/report? -d 90 -p 1 -q 3600 -i 60 -s TEST -o /results 
 
 # done running stuff
