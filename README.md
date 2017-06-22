@@ -29,7 +29,7 @@ mv tiles.tar /some/path/to/tiles.tar
 #  note the last argument of both is a date string format, if your data is already an epoch timestamp you dont need to provide it
 #TODO: fix the docker-compose.yml to actually supply DATASTORE_URL
 #start up all the containers
-FORMATTER='sv,\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' DATAPATH=/some/path/to/data docker-compose up
+FORMATTER='sv,\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' DATAPATH=/some/path/to docker-compose up
 #shovel messages into kafka from your local data source
 py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 YOUR_FLAT_FILE
 #tail some docker logs
@@ -123,10 +123,14 @@ docker network create --driver bridge opentraffic
 docker run -d --net opentraffic -p 2181:2181 --name zookeeper wurstmeister/zookeeper:latest
 #start kafka
 docker run -d --net opentraffic -p 9092:9092 -e "KAFKA_ADVERTISED_HOST_NAME=localhost" -e "KAFKA_ADVERTISED_PORT=9092" -e "KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181" \
-  -e "KAFKA_CREATE_TOPICS=raw:1:1,formatted:1:1,batched:4:1" -v /var/run/docker.sock:/var/run/docker.sock --name kafka wurstmeister/kafka:latest
+  -e "KAFKA_CREATE_TOPICS=raw:1:1,formatted:4:1,batched:4:1" -v /var/run/docker.sock:/var/run/docker.sock --name kafka wurstmeister/kafka:latest
 #shovel messages into kafka from your local data source
 cat YOUR_FLAT_FILE | py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 -
 ```
+
+### Kafka
+
+We use kafka streams as the input mechanism to the reporter. You'll notice above that we rely on 3 topics being present. Its important that, if you are running your own Kafka infrastructure, that either the first topic is keyed by the uuid/vehicle id or that you only run a single partition in this topic. The reason for that is to prevent messages from arriving at the second topic in an out of order fashion.
 
 ### Exposed Ports/Services
 * the container exposes port 8002 for the reporter python and docker-compose maps that port to your localhost

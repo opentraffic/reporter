@@ -2,8 +2,8 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	
-	<groupId>org.opentraffic</groupId>
-	<artifactId>reporter</artifactId>
+	<groupId>io.opentraffic</groupId>
+	<artifactId>reporter-kafka</artifactId>
 	<version>1.0-SNAPSHOT</version>
 
 	<name>Open Traffic Reporter</name>
@@ -74,7 +74,7 @@
 				<configuration>
 					<archive>
 						<manifest>
-							<mainClass>org.opentraffic.reporter.Reporter</mainClass>
+							<mainClass>io.opentraffic.reporter.Reporter</mainClass>
 						</manifest>
 					</archive>
 					<descriptorRefs>

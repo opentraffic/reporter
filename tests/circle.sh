@@ -64,38 +64,46 @@ docker run \
 #
 sleep 30
 
-# inject the data into kafka
-#
-{
-  sleep 30 #wait for the kafka worker to connect
-  echo "Producing data to kafka"
-  py/cat_to_kafka.py --bootstrap localhost:9092 --topic raw valhalla_data/*.sv
-} &
-
 # start kafka worker
 #
 echo "Starting kafka reporter..."
+mkdir ${PWD}/results
 docker run \
-  -t \
+  -d \
   --net opentraffic \
   --name reporter-kafka \
+  -v ${PWD}/results:/results \
   reporter:latest \
-  /usr/local/bin/reporter-kafka -b ${docker_ip}:${kafka_port} -r raw -i formatted -l batched -f ',sv,\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' -u http://reporter-py:${reporter_port}/report? -d 60000 -v
+  /usr/local/bin/reporter-kafka -b ${docker_ip}:${kafka_port} -t raw,formatted,batched -f ',sv,\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' -u http://reporter-py:${reporter_port}/report? -p 1 -q 3600 -i 15 -s TEST -o /results 
+
+# inject the data into kafka
+#
+sleep 10 #wait for the kafka worker to connect
+echo "Producing data to kafka" 
+py/cat_to_kafka.py --bootstrap localhost:9092 --topic raw valhalla_data/*.sv
 
 # done running stuff
 #
-wait
+sleep 180
 docker kill $(docker ps -q)
   
-# test that we got data through to the echo server
-# TODO: this is lame do something more meaningful
+# test that we got data written out
 #
 echo "Checking results..."
-reporter=$(docker ps -a | grep -F reporter-py | awk '{print $1}')
-posts=$(docker logs ${reporter} 2>&1 | awk '{print $6}' | grep -Fc POST)
-oks=$(docker logs ${reporter} 2>&1 | awk '{print $9}' | grep -Fc 200)
-if [[ ${oks} == 0 ]] || [[ ${posts} != ${oks} ]]; then
+reporter=$(docker ps -a | grep -F "reporter-kafka" | awk '{print $1}')
+tile_count=$(docker logs ${reporter} 2>&1 | grep -cF "Writing tile to")
+if [[ ${tile_count} == 0 ]]; then
+  echo "No tiles written"
   exit 1
 fi
-
+if [[ ${tile_count} != $(find ${PWD}/results -type f | wc -l) ]]; then
+  echo "Wrong number of tiles written"
+  exit 1
+fi
+for tile in $(docker logs ${reporter} 2>&1 | grep -F "Writing tile to" | sed -e "s/.*tile to //g"); do
+  if [[ ! -e "${PWD}/${tile}" ]]; then
+    echo "Couldn't find ${PWD}/${tile}"
+    exit 1
+  fi
+done
 echo "Done!"

@@ -1,21 +1,24 @@
-package org.opentraffic.reporter;
+package io.opentraffic.reporter;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serializer;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 
 public class Batch {
   
   public float max_separation; //the maximum distance between the first an any other point
+  public long last_update;     //stream time of when this batch was last touched
   public List<Point> points;
   
   public Batch() {
@@ -43,7 +46,7 @@ public class Batch {
     points.add(p);
   }
   
-  public String report(String key, String url, int min_dist, int min_size, long min_elapsed) {
+  public JsonNode report(String key, String url, int min_dist, int min_size, long min_elapsed) {
     //if it doesnt meet the requirements then bail
     if(max_separation < min_dist || points.size() < min_size ||
         points.get(points.size() - 1).time - points.get(0).time < min_elapsed)
@@ -58,9 +61,9 @@ public class Batch {
       sb.append(',');
     }
     sb.replace(sb.length() - 1, sb.length() + 1, "]}");
-    String post_body = sb.toString();
+    StringEntity body = new StringEntity(sb.toString(), ContentType.create("application/json", Charset.forName("UTF-8")));
     //go to the server for json
-    String response = HttpClient.POST(url, post_body);
+    String response = HttpClient.POST(url, body);
     try {
       //parse the response
       ObjectMapper mapper = new ObjectMapper();
@@ -73,6 +76,7 @@ public class Batch {
       max_separation = 0;
       for(int i = 1; i < points.size(); i++)
         max_separation = (float)Math.max(max_separation, distance(points.get(i), points.get(0)));
+      return node;
     }
     catch(Exception e) {
       //TODO: maybe we shouldnt trim everything?
@@ -80,7 +84,7 @@ public class Batch {
       points.clear();
     }
     //return the raw response string
-    return response;    
+    return null;    
   }
 
   public static class Serder implements Serde<Batch> {
@@ -101,9 +105,10 @@ public class Batch {
         public byte[] serialize(String topic, Batch batch) {
           if(batch == null)
             return null;
-          ByteBuffer buffer = ByteBuffer.allocate(4 + 4 + Point.SIZE * batch.points.size());
+          ByteBuffer buffer = ByteBuffer.allocate(4 + 4 + 8 + Point.SIZE * batch.points.size());
           buffer.putInt(batch.points.size());
           buffer.putFloat(batch.max_separation);
+          buffer.putLong(batch.last_update);
           for(Point p : batch.points)
             Point.Serder.put(p, buffer);
           return buffer.array();
@@ -127,6 +132,7 @@ public class Batch {
           Batch batch = new Batch();
           batch.points = new ArrayList<Point>(count);
           batch.max_separation = buffer.getFloat();
+          batch.last_update = buffer.getLong();
           for(int i = 0; i < count; i++)
             batch.points.add(Point.Serder.get(buffer));          
           return batch;

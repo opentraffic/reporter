@@ -1,4 +1,4 @@
-package org.opentraffic.reporter;
+package io.opentraffic.reporter;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.kafka.streams.processor.Processor;
