@@ -83,7 +83,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         KeyValueIterator<String, Batch> it = store.all();
         while(it.hasNext()) {
           KeyValue<String, Batch> kv = it.next();
-          if(timestamp - kv.value.last_update > SESSION_GAP)
+          if(kv != null && (kv.value == null || timestamp - kv.value.last_update > SESSION_GAP))
             to_delete.add(kv.key);
         }
         it.close();
@@ -93,7 +93,8 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
           //TODO: dont actually report here, instead insert into a queue that a thread can drain asynchronously
           logger.debug("Evicting " + key + " as it was stale");
           Batch batch = store.delete(key);
-          forward(batch.report(key, url, 0, 2, 0));
+          if(batch != null)
+            forward(batch.report(key, url, 0, 2, 0));
         }
       }
       
