@@ -75,12 +75,12 @@ sleep 30
 # start kafka worker
 #
 echo "Starting kafka reporter..."
-mkdir ./results
+mkdir ${PWD}/results
 docker run \
   -t \
   --net opentraffic \
   --name reporter-kafka \
-  -v ./results:/results \
+  -v ${PWD}/results:/results \
   reporter:latest \
   /usr/local/bin/reporter-kafka -b ${docker_ip}:${kafka_port} -t raw,formatted,batched -f ',sv,\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' -u http://reporter-py:${reporter_port}/report? -d 90 -p 1 -q 3600 -i 60 -s TEST -o /results 
 
@@ -98,13 +98,13 @@ if [[ ${tile_count} == 0]]; then
   echo "No tiles written"
   exit 1
 fi
-if [[ ${tile_count} != $(find ./results -type f | wc -l) ]]; then
+if [[ ${tile_count} != $(find ${PWD}/results -type f | wc -l) ]]; then
   echo "Wrong number of tiles written"
   exit 1
 fi
 for tile in $(docker logs ${reporter} 2>&1 | grep -F "Writing tile to" | sed -e "s/.*tile to //g"); do
-  if [[ ! -e ".${tile}" ]]; then
-    echo "Couldn't find ${tile}"
+  if [[ ! -e "${PWD}/${tile}" ]]; then
+    echo "Couldn't find ${PWD}/${tile}"
     exit 1
   fi
 done
