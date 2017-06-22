@@ -86,7 +86,7 @@ public class Reporter {
     
     Option output = new Option("o", "output-location", true, "A location to put the output histograms. "
         + "This can either be an http://location to POST to or /a/directory to write files to. "
-        + "If its neither of those then its assumed to be an s3 bucket and you'll need to have "
+        + "If its of the form https://*.amazonaws.com its assumed to be an s3 bucket and you'll need to have "
         + "the environment variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY properly set.");
     output.setRequired(true);
 

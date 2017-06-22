@@ -56,26 +56,25 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
     quantisation = Integer.parseInt(cmd.getOptionValue("quantisation"));
     if(quantisation < 60)
       throw new RuntimeException("Need quantisation parameter of 60 or more");
-    output = cmd.getOptionValue("output-location");
+    output = cmd.getOptionValue("output-location").replaceAll("/+$", "");
     source = cmd.getOptionValue("source");
     
-    //if its s3    
     File f = new File(output);
+    bucket = output.endsWith("amazonaws.com");
     boolean http = output.startsWith("http://") || output.startsWith("https://");
-    if(!http && !f.isDirectory()) {
-      bucket = true;
-      Map<String, String> env = System.getenv();
-      aws_key = env.get("AWS_ACCESS_KEY_ID");
-      aws_secret = cmd.getOptionValue("AWS_SECRET_ACCESS_KEY");
+    Map<String, String> env = System.getenv();
+    aws_key = env.get("AWS_ACCESS_KEY_ID");
+    aws_secret = env.get("AWS_SECRET_ACCESS_KEY");
+    
+    //if its a bucket but you didnt have keys
+    if(bucket) {
+      if(!http)
+        throw new RuntimeException("Cannot PUT to " + output + " without https:// or http:// prefix");
       if(aws_key == null || aws_secret == null)
-        throw new RuntimeException("Cannot PUT to s3 bucket " + output + " without environment variables"
-            + " AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY");
-    }//not s3
-    else {
-      bucket = false;
-      aws_key = null;
-      aws_secret = null;
-    }
+        throw new RuntimeException("Both env vars AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set to PUT to " + output);
+    }//its not http and we couldnt make a directory
+    else if(!http && !f.isDirectory() && !f.mkdirs())
+      throw new RuntimeException("Cannot create output directory " + output);
   }
 
   @Override

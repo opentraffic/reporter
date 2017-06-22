@@ -38,18 +38,20 @@ public final class HttpClient {
   public static String PUT(String url, StringEntity body) {
     return PUT(url, body, new Header[0]);
   }
-  public static String AwsPUT (String bucket, String location, StringEntity body, String key, String secret) throws NoSuchAlgorithmException, InvalidKeyException {
+  public static String AwsPUT (String url, String location, StringEntity body, String key, String secret) throws NoSuchAlgorithmException, InvalidKeyException {
     //http://docs.aws.amazon.com/AmazonS3/latest/dev/RESTAuthentication.html#RESTAuthenticationRequestCanonicalization
-    String resource = '/' + bucket + '/' + location;
+    String host = url.replaceAll("^.*/", "");
+    String bucket = host.substring(0, host.indexOf('.'));    
     String date = java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("GMT")));
+    String resource = '/' + bucket + '/' + location;
     String sign_me = "PUT\n\n" + body.getContentType().getValue() + '\n' + date+ '\n' + resource;
     String signature = MakeAwsSignature(sign_me, secret);
     Header[] headers = {
-      new BasicHeader("Host", bucket + ".s3.amazonaws.com"),
+      new BasicHeader("Host", host),
       new BasicHeader("Date", date),
       new BasicHeader("Authorization", "AWS " + key + ':' + signature)
     };
-    return PUT(bucket + ".s3.amazonaws.com/" + location, body, headers);
+    return PUT(url + "/" + location, body, headers);
   }
   public static String PUT(String url, StringEntity body, Header[] headers) {
     HttpEntityEnclosingRequestBase request = new HttpPut(url);
