@@ -69,7 +69,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         //put it back if it has something
         if(batch.points.size() > 0) {
           batch.last_update = context.timestamp();
-          this.store.put(key, batch);
+          store.put(key, batch);
         }
         
         //move on

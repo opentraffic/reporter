@@ -64,37 +64,35 @@ docker run \
 #
 sleep 30
 
-# inject the data into kafka
-#
-{
-  sleep 30 #wait for the kafka worker to connect
-  echo "Producing data to kafka"
-  py/cat_to_kafka.py --bootstrap localhost:9092 --topic raw valhalla_data/*.sv
-} &
-
 # start kafka worker
 #
 echo "Starting kafka reporter..."
 mkdir ${PWD}/results
 docker run \
-  -t \
+  -d \
   --net opentraffic \
   --name reporter-kafka \
   -v ${PWD}/results:/results \
   reporter:latest \
-  /usr/local/bin/reporter-kafka -b ${docker_ip}:${kafka_port} -t raw,formatted,batched -f ',sv,\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' -u http://reporter-py:${reporter_port}/report? -d 90 -p 1 -q 3600 -i 60 -s TEST -o /results 
+  /usr/local/bin/reporter-kafka -b ${docker_ip}:${kafka_port} -t raw,formatted,batched -f ',sv,\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' -u http://reporter-py:${reporter_port}/report? -p 1 -q 3600 -i 60 -s TEST -o /results 
+
+# inject the data into kafka
+#
+sleep 30 #wait for the kafka worker to connect
+echo "Producing data to kafka" 
+py/cat_to_kafka.py --bootstrap localhost:9092 --topic raw valhalla_data/*.sv
 
 # done running stuff
 #
-wait
+sleep 15
 docker kill $(docker ps -q)
   
 # test that we got data written out
 #
 echo "Checking results..."
-reporter=$(docker ps -a | grep -F reporter-kafka | awk '{print $1}')
+reporter=$(docker ps -a | grep -F "reporter-kafka" | awk '{print $1}')
 tile_count=$(docker logs ${reporter} 2>&1 | grep -cF "Writing tile to")
-if [[ ${tile_count} == 0]]; then
+if [[ ${tile_count} == 0 ]]; then
   echo "No tiles written"
   exit 1
 fi
