@@ -84,7 +84,7 @@ py/cat_to_kafka.py --bootstrap localhost:9092 --topic raw --key-with 'lambda lin
 
 # done running stuff
 #
-sleep 180
+sleep 300
 docker kill $(docker ps -q)
   
 # test that we got data written out
