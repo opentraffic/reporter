@@ -55,7 +55,7 @@ docker run \
   -e "KAFKA_ADVERTISED_HOST_NAME=${docker_ip}" \
   -e "KAFKA_ADVERTISED_PORT=${kafka_port}" \
   -e "KAFKA_ZOOKEEPER_CONNECT=zookeeper:${zookeeper_port}" \
-  -e "KAFKA_CREATE_TOPICS=raw:1:1,formatted:1:1,batched:4:1" \
+  -e "KAFKA_CREATE_TOPICS=raw:4:1,formatted:4:1,batched:4:1" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   --name kafka \
   wurstmeister/kafka:latest
@@ -80,7 +80,7 @@ docker run \
 #
 sleep 10 #wait for the kafka worker to connect
 echo "Producing data to kafka" 
-py/cat_to_kafka.py --bootstrap localhost:9092 --topic raw valhalla_data/*.sv
+py/cat_to_kafka.py --bootstrap localhost:9092 --topic raw --key-with 'lambda line: line.split("|")[1]' valhalla_data/*.sv
 
 # done running stuff
 #
