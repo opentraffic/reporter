@@ -31,4 +31,4 @@ deployment:
     commands:
       - ecs-deploy/bin/deploy.sh --env dev --region us-east-1 --project reporter
       - ecs-deploy/bin/deploy.sh --env dev --region us-east-1 --project reporter-kafka --cluster reporter-dev --no-push-image
-      - ./tests/live.sh "https://reporter-dev.opentraffic.io/report?"
+        #- ./tests/live.sh "https://reporter-dev.opentraffic.io/report?"
