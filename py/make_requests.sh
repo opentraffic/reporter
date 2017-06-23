@@ -44,7 +44,7 @@ for file in ${files}; do
   #download in the foreground
   echo "Retrieving ${file} from s3" && aws s3 cp ${s3_dir}${file} . &> /dev/null
   #send to kafka producer
-  zcat ${file} | ./cat_to_kafka.py --bootstrap ${bootstrap} --topic ${topic} --key-with 'lambda line: line.split("|")[1]' -
+  zcat ${file} | sort | ./cat_to_kafka.py --bootstrap ${bootstrap} --topic ${topic} --key-with 'lambda line: line.split("|")[1]' -
   #done with this
   echo "Finished POST'ing ${file}" && rm -f ${file}
 done
