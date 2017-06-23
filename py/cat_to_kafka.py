@@ -3,6 +3,7 @@ import sys
 import os
 import argparse
 import logging
+import json
 from kafka import KafkaProducer
 from kafka.common import KafkaError
 
@@ -27,7 +28,6 @@ args.file = args.file[0]
 
 producer = KafkaProducer(bootstrap_servers = args.bootstrap.split(','),api_version=(0, 10))
 exec('key_with = ' + (args.key_with if args.key_with else 'None'))
-
 
 #output a single body
 #for each line from stdin
