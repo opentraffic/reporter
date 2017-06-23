@@ -31,7 +31,7 @@ mv tiles.tar /some/path/to/tiles.tar
 #start up all the containers
 FORMATTER='sv,\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' DATAPATH=/some/path/to docker-compose up
 #shovel messages into kafka from your local data source
-py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 YOUR_FLAT_FILE
+py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 --key-with 'lambda line: line.split("|")[1]' YOUR_FLAT_FILE
 #tail some docker logs
 reporterpy=$(docker ps -a | grep -F reporter-py | awk '{print $1}')
 docker logs --follow ${reporterpy}
@@ -109,7 +109,7 @@ THREAD_POOL_COUNT=1 PYTHONPATH=../../valhalla/valhalla/.libs/ pdb py/reporter_se
 sudo apt-get install -y openjdk-8-jdk maven
 mvn clean package
 #start up just the kafka reporter worker
-target/reporter-kafka -b YOUR_KAFKA_BOOTSTRAP_SERVER_AND_PORT -r raw -i formatted -l batched -f 'sv,\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' -u http://localhost:8002/report? -v
+target/reporter-kafka -b YOUR_KAFKA_BOOTSTRAP_SERVER_AND_PORT -r raw -i formatted -l batched -f @json@id@latitude@longitude@timestamp@accuracy -u http://localhost:8002/report? -v
 #if you really want to debug, simply import the maven project into eclipse, make a new debug configureation, and add the arguments above to the arguments tab
 #now you can set breakpoints etc and walk through the code in eclipse
 ```
@@ -123,9 +123,9 @@ docker network create --driver bridge opentraffic
 docker run -d --net opentraffic -p 2181:2181 --name zookeeper wurstmeister/zookeeper:latest
 #start kafka
 docker run -d --net opentraffic -p 9092:9092 -e "KAFKA_ADVERTISED_HOST_NAME=localhost" -e "KAFKA_ADVERTISED_PORT=9092" -e "KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181" \
-  -e "KAFKA_CREATE_TOPICS=raw:1:1,formatted:4:1,batched:4:1" -v /var/run/docker.sock:/var/run/docker.sock --name kafka wurstmeister/kafka:latest
+  -e "KAFKA_CREATE_TOPICS=raw:4:1,formatted:4:1,batched:4:1" -v /var/run/docker.sock:/var/run/docker.sock --name kafka wurstmeister/kafka:latest
 #shovel messages into kafka from your local data source
-cat YOUR_FLAT_FILE | py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 -
+cat YOUR_FLAT_FILE | py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 --key-with 'lambda line: json.loads(line)["id"]' -
 ```
 
 ### Kafka
