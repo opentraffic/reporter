@@ -84,7 +84,11 @@ py/cat_to_kafka.py --bootstrap localhost:9092 --topic raw --key-with 'lambda lin
 
 # done running stuff
 #
-sleep 300
+echo "Sleeping 5 minutes to allow data to be processed..."
+for i in $(seq 1 300); do
+  echo -e "$i \c"
+  sleep 1
+done
 docker kill $(docker ps -q)
   
 # test that we got data written out
