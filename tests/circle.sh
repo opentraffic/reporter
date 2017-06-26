@@ -43,7 +43,7 @@ docker run \
   --net opentraffic \
   -p ${zookeeper_port}:${zookeeper_port} \
   --name zookeeper \
-  wurstmeister/zookeeper:latest
+  wurstmeister/zookeeper:3.4.6
 
 # start kafka
 #
@@ -58,7 +58,7 @@ docker run \
   -e "KAFKA_CREATE_TOPICS=raw:4:1,formatted:4:1,batched:4:1" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   --name kafka \
-  wurstmeister/kafka:latest
+  wurstmeister/kafka:0.10.2.1
 
 # wait for the topics to be created
 #
