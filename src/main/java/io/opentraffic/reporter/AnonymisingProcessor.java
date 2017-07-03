@@ -123,7 +123,8 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
           Segment segment = kv.value;
           if(kv.value.count >= privacy) {
             String tile_name =  Long.toString(key.time_range_start) + '_' +
-              Long.toString(key.time_range_start + quantisation - 1) + '/' + Long.toString(key.tile_level) + '/' + Long.toString(key.tile_id);
+              Long.toString(key.time_range_start + quantisation - 1) + '/' + 
+              Long.toString(key.getTileLevel()) + '/' + Long.toString(key.getTileId());
             StringBuffer tile = tiles.get(tile_name);
             //there wasnt already a tile made
             if(tile == null) {

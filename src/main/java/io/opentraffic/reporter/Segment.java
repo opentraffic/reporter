@@ -33,7 +33,7 @@ public class Segment {
     this.count = 1;
   }
   
-  public Segment(long id, long min, long max, int duration, int length, int queue, int count,  Long next_id) {
+  public Segment(long id, long min, long max, int duration, int length, int queue, int count, Long next_id) {
     this.id = id;
     this.next_id = next_id;
     this.min = min;
@@ -55,13 +55,8 @@ public class Segment {
     this.count += s.count;
   }
   
-  //first 3 bits are hierarchy level then 22 bits of tile id. the rest we want zero'd out
-  public long getTileId() {    
-    return (id >> 3) & 0x3FFFFF;
-  }
-  
-  public long getTileLevel() {
-    return id & 0x7;
+  public boolean valid() {
+    return count > 0 && min > 0 && max > 0 && duration > 0 && length > 0 && queue > 0;
   }
   
   public static String columnLayout() {
