@@ -24,7 +24,27 @@ public class Point {
     this.accuracy = accuracy;
     this.time = time;
   }
-  
+
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj)
+      return true;
+    if (obj == null)
+      return false;
+    if (getClass() != obj.getClass())
+      return false;
+    Point other = (Point) obj;
+    if (accuracy != other.accuracy)
+      return false;
+    if (Float.floatToIntBits(lat) != Float.floatToIntBits(other.lat))
+      return false;
+    if (Float.floatToIntBits(lon) != Float.floatToIntBits(other.lon))
+      return false;
+    if (time != other.time)
+      return false;
+    return true;
+  }
+
   public static class Serder implements Serde<Point> {
     public static final DecimalFormat floatFormatter = new DecimalFormat("###.######", new DecimalFormatSymbols(Locale.US));
     public static void put(Point p, ByteBuffer buffer) {
