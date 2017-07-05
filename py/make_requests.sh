@@ -39,11 +39,12 @@ fi
 echo "Retrieving file list from s3"
 files=$(aws s3 ls ${s3_dir} | awk '{print $4}' | grep -E ${file_re} | tr '\n' ' ')
 echo "Processing $(echo ${files} | tr ' ' '\n' | wc -l) files"
-
+echo $files
 for file in ${files}; do
   #download in the foreground
   echo "Retrieving ${file} from s3" && aws s3 cp ${s3_dir}${file} . &> /dev/null
-  #send to kafka producer
+exit  
+#send to kafka producer
   zcat ${file} | sort | ./cat_to_kafka.py --bootstrap ${bootstrap} --topic ${topic} --key-with 'lambda line: line.split("|")[1]' -
   #done with this
   echo "Finished POST'ing ${file}" && rm -f ${file}
