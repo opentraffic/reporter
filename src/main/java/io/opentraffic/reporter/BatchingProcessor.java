@@ -114,7 +114,8 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
                   report.get("length").asInt(), report.get("queue_length").asInt());
               //the key is the segment pair so processors will only ever see certain tiles
               //this seeks to maximize the number of possible segments in a given tile
-              context.forward(Long.toString(segment.id) + ' ' + 
+              if(segment.valid())
+                context.forward(Long.toString(segment.id) + ' ' + 
                   (segment.next_id != null ? Long.toString(segment.next_id) : "null"), segment);
             }
             catch(Exception e) {

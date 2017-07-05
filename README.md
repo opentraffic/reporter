@@ -68,7 +68,7 @@ docker run -d --net opentraffic -p 8002 --name reporter-py -v /some/path/to:/dat
 #  note the last argument of both is a date string format, if your data is already an epoch timestamp you dont need to provide it
 #start up just the kafka reporter worker
 docker run -d --net opentraffic --name reporter-kafka opentraffic/reporter:latest \
-  /usr/local/bin/reporter-kafka -b YOUR_KAFKA_BOOTSTRAP_SERVER_AND_PORT -r raw -i formatted -l batched -f 'sv,\\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' -u http://reporter-py:8002/report? -v
+  /usr/local/bin/reporter-kafka -b YOUR_KAFKA_BOOTSTRAP_SERVER_AND_PORT -t raw,formatted,batched -f 'sv,\\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss' -u http://reporter-py:8002/report? -p 2 -q 3600 -i 600 -s TEST -o /results
 #tail some docker logs
 reporterpy=$(docker ps -a | grep -F reporter-py | awk '{print $1}')
 docker logs --follow ${reporterpy}
@@ -109,7 +109,7 @@ THREAD_POOL_COUNT=1 PYTHONPATH=../../valhalla/valhalla/.libs/ pdb py/reporter_se
 sudo apt-get install -y openjdk-8-jdk maven
 mvn clean package
 #start up just the kafka reporter worker
-target/reporter-kafka -b YOUR_KAFKA_BOOTSTRAP_SERVER_AND_PORT -r raw -i formatted -l batched -f @json@id@latitude@longitude@timestamp@accuracy -u http://localhost:8002/report? -v
+target/reporter-kafka -b YOUR_KAFKA_BOOTSTRAP_SERVER_AND_PORT -t raw,formatted,batched -f @json@id@latitude@longitude@timestamp@accuracy -u http://localhost:8002/report? -p 2 -q 3600 -i 600 -s TEST -o /results
 #if you really want to debug, simply import the maven project into eclipse, make a new debug configureation, and add the arguments above to the arguments tab
 #now you can set breakpoints etc and walk through the code in eclipse
 ```
@@ -131,6 +131,30 @@ cat YOUR_FLAT_FILE | py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 -
 ### Kafka
 
 We use kafka streams as the input mechanism to the reporter. You'll notice above that we rely on 3 topics being present. Its important that, if you are running your own Kafka infrastructure, that either the first topic is keyed by the uuid/vehicle id or that you only run a single partition in this topic. The reason for that is to prevent messages from arriving at the second topic in an out of order fashion.
+
+You'll also notice that there are tons of options to the kafka stream program so we'll list them here for clarity:
+
+```
+usage: kafka-reporter
+ -b,--bootstrap <arg>         Bootstrap servers config
+ -d,--duration <arg>          How long to run the program in seconds, defaults to (essentially) forever.
+ -f,--formatter <arg>         The formatter configuration separated args for constructing a custom formatter. Separated value and json are currently supported. To construct a seprated value formatter where the raw messages look like:
+                              2017-01-31 16:00:00|uuid_abcdef|x|x|x|accuracy|x|x|x|lat|lon|x|x|x
+                              Specify a value of:
+                              --formatter ",sv,\|,1,9,10,0,5,yyyy-MM-dd HH:mm:ss"
+                              To construct a json formatter where the raw messages look like:
+                              {"timestamp":1495037969,"id":"uuid_abcdef","accuracy":51.305,"latitude":3.465725,"longitude":-76.5135033}
+                              Specify a value of:
+                              --formatter ",json,id,latitude,longitude,timestamp,accuracy"
+                              Note that the time format string is optional, ie when your time value is already in epoch seconds.
+ -i,--flush-interval <arg>    The interval, in seconds, at which tiles are flushed to storage. Do not set this parameter lower than the quantisation. Doing so could result in tiles with very few segment pairs.
+ -o,--output-location <arg>   A location to put the output histograms. This can either be an http://location to POST to or /a/directory to write files to. If its of the form https://*.amazonaws.com its assumed to be an s3 bucket and you'll need to have the environment variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY properly set.
+ -p,--privacy <arg>           The minimum number of observations of a given segment pair required before including this pair in the histogram.
+ -q,--quantisation <arg>      The granularity, in seconds, at which to combine observations into as single tile. Setting this to 3600 will result in tiles where all segment pairs occuring within a given hour will be in the same tile. Do not set this parameter higher than the flush interval parameter. Doing so could result in tiles with very few segment pairs
+ -s,--source <arg>            The name used in the tiles as a means of identifying the source of the data.
+ -t,--topics <arg>            A comma separated list of topics listed in the order they are operated on in the kafka stream.The first topic is the raw unformatted input messages. The second is the formatted messages. The third is segments. The fourth is the anonymised segments.
+ -u,--reporter-url <arg>      The url to send batched/windowed portions of a given keys points to.
+```
 
 ### Exposed Ports/Services
 * the container exposes port 8002 for the reporter python and docker-compose maps that port to your localhost
