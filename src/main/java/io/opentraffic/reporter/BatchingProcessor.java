@@ -117,6 +117,8 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
               if(segment.valid())
                 context.forward(Long.toString(segment.id) + ' ' + 
                   (segment.next_id != null ? Long.toString(segment.next_id) : "null"), segment);
+              else
+                logger.warn("Got back invalid segment: " + segment.toString());
             }
             catch(Exception e) {
               logger.error("Unusable reported segment pair: " + report.toString() + " (" + e.getMessage() + ")");

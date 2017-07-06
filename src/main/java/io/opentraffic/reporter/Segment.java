@@ -56,7 +56,14 @@ public class Segment {
   }
   
   public boolean valid() {
-    return count > 0 && min > 0 && max > 0 && duration > 0 && length > 0 && queue > 0;
+    return count > 0 && min > 0 && max > 0 && duration > 0 && length > 0 && queue >= 0;
+  }
+  
+  @Override
+  public String toString() {
+    StringBuffer b = new StringBuffer(64);
+    appendToStringBuffer(b, "");
+    return b.toString();
   }
   
   public static String columnLayout() {
