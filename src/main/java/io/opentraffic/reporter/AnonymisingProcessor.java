@@ -110,7 +110,7 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
       }
       
       private void clean(ArrayList<Segment> segments) {
-      //delete ranges of ids that dont have enough counts to make the privacy requirement
+        //delete ranges of ids that dont have enough counts to make the privacy requirement
         int start = 0;
         for(int i = 0; i < segments.size(); i++) {
           Segment s = segments.get(start);
