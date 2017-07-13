@@ -115,8 +115,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
               //the key is the segment pair so processors will only ever see certain tiles
               //this seeks to maximize the number of possible segments in a given tile
               if(segment.valid())
-                context.forward(Long.toString(segment.id) + ' ' + 
-                  (segment.next_id != null ? Long.toString(segment.next_id) : "null"), segment);
+                context.forward(Long.toString(segment.id) + ' ' +  Long.toString(segment.next_id), segment);
               else
                 logger.warn("Got back invalid segment: " + segment.toString());
             }
