@@ -5,7 +5,6 @@ import requests
 import time as t
 from random import shuffle
 import itertools
-import pdb
 import numpy as np
 from pyproj import Proj, transform
 from scipy.stats import norm
@@ -61,7 +60,6 @@ def synthesize_gps(dfEdges, shapeCoords, localEpsg="2768", distribution="normal"
     sttm = int(t.time()) - 86400   # yesterday
     seconds = 0
     shapeIndexCounter = 0
-    pdb.set_trace()
     for i, edge in enumerate(edges):
         if i == 0:
             trueCoords = shapeCoords[edge['begin_shape_index']]
