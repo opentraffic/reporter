@@ -107,12 +107,15 @@ if __name__ == '__main__':
     lat1 = sys.argv[1]
     lon1 = sys.argv[2]
     lat2 = sys.argv[3]
-    lon2 = sys.argv[4] 
+    lon2 = sys.argv[4]
     shape = get_route_shape(lat1, lon1, lat2, lon2)
     print("")
     edges = get_trace_attrs(shape)
     print("")
+    optionsDict = {
+        "match_options": {"mode":"bicycle"}}
     report_json = synthesize_gps(edges, shape)
+    report_json.update(optionsDict)
     payload = {"json": json.dumps(report_json, separators=(',', ':'))}
     baseUrl = 'http://localhost:8001/report?'
     matched_segs = requests.get(baseUrl, params=payload)
@@ -120,7 +123,7 @@ if __name__ == '__main__':
     print("")
     datastore_out = matched_segs.json()['datastore']
     print(json.dumps(datastore_out, separators=(',', ':')))
-  
+
   except:
     e = sys.exc_info()[0]
     print e
