@@ -63,8 +63,8 @@ public class Segment implements Comparable<Segment>{
   
   @Override
   public int compareTo(Segment o) {
-    // TODO Auto-generated method stub
-    return 0;
+    int cmp = Long.compare(id, o.id); if(cmp != 0) return cmp;
+    return Long.compare(next_id, o.next_id);    
   }
   
   public static String columnLayout() {
