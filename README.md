@@ -128,6 +128,8 @@ docker run -d --net opentraffic -p 9092:9092 -e "KAFKA_ADVERTISED_HOST_NAME=loca
 cat YOUR_FLAT_FILE | py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 --key-with 'lambda line: json.loads(line)["id"]' -
 ```
 
+Notice the number `4` appearing multiple times in the above `docker run` command. This configures the number of partitions in each topic (its essentially akin to parallelism). You can increase or decrease this however you like for your particular system. The first topic `raw:4:1`, because it has 4 paritions must be keyed by uuid, as noted below. If you are not keying your input in this way please set it to `raw:1:1`.
+
 ### Kafka
 
 We use kafka streams as the input mechanism to the reporter. You'll notice above that we rely on 3 topics being present. Its important that, if you are running your own Kafka infrastructure, that either the first topic is keyed by the uuid/vehicle id or that you only run a single partition in this topic. The reason for that is to prevent messages from arriving at the second topic in an out of order fashion.
