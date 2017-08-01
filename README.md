@@ -158,6 +158,20 @@ usage: kafka-reporter
  -u,--reporter-url <arg>      The url to send batched/windowed portions of a given keys points to.
 ```
 
+#### Maintainance
+
+If you run kafka locally alot it can start to get out of control with respect to both number of containers and disk space etc. If you want to kill off all of your containers try this:
+
+    docker rm -f $(docker ps -qa);
+    
+If you want to remove all of your various versions of docker images try this:
+
+    docker rmi -f $(docker images -q)
+    
+Finally if your disk is starting to fill up you can tell docker to free all of that space by doing:
+
+    docker volume prune
+
 ### Exposed Ports/Services
 * the container exposes port 8002 for the reporter python and docker-compose maps that port to your localhost
 * you can test the reporter python http service with a trace to see 1) what is being sent to the datastore 2) what osmlr segments it matched 3) the shape used index within the input trace that can be trimmed (either been reported on or can be skipped) : [click here](http://localhost:8002/report?json={"uuid":"100609","trace":[{"lat":14.543087,"lon":121.021019,"time":1000},{"lat":14.543620,"lon":121.021652,"time":1008},{"lat":14.544957,"lon":121.023247,"time":1029},{"lat":14.545470,"lon":121.023811,"time":1036},{"lat":14.546580,"lon":121.025124,"time":1053},{"lat":14.547284,"lon":121.025932,"time":1064},{"lat":14.547817,"lon":121.026665,"time":1072},{"lat":14.549700,"lon":121.028839,"time":1101},{"lat":14.550350,"lon":121.029610,"time":1111},{"lat":14.551256,"lon":121.030693,"time":1125},{"lat":14.551785,"lon":121.031395,"time":1133},{"lat":14.553422,"lon":121.033340,"time":1158},{"lat":14.553819,"lon":121.033806,"time":1164},{"lat":14.553976,"lon":121.033997,"time":1167}]})
