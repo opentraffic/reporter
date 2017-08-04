@@ -5,6 +5,10 @@ import requests
 import time as t
 from random import shuffle
 import itertools
+import numpy as np
+from pyproj import Proj, transform
+from scipy.stats import norm
+from shapely.geometry import LineString, MultiPoint, MultiLineString
 
 def decode(encoded):
     inv = 1.0 / 1e6
@@ -28,49 +32,121 @@ def decode(encoded):
             [float('%.6f' % (ll[1] * inv)), float('%.6f' % (ll[0] * inv))])
     return decoded
 
-def synthesize_gps(edges, shape, distribution="normal",
-                   stddev=0, uuid='999999'):
+def synthesize_gps(dfEdges, shapeCoords, localEpsg="2768", distribution="normal",
+                   noise=0, sampleRate=1, uuid="999999", shapeMatch="map_snap",
+                   mode="auto", turnPenaltyFactor=0, breakageDist=2000, beta=3,
+                   sigmaZ=4.07, searchRadius=50):
 
-    jsonDict = {"uuid": uuid, "trace": []}
-    coords = decode(shape)
-    maxCoordIndex = max([edge['end_shape_index'] for edge in edges])
-    if maxCoordIndex >= len(coords):
-        return None, None
-    sttm = t.time() - 86400   # yesterday
+    accuracy = round(min(100, norm.ppf(0.95, loc=0, scale=max(1, noise))), 2)
+    mProj = Proj(init='epsg:{0}'.format(localEpsg))
+    llProj = Proj(init='epsg:4326')
+    jsonDict = {
+        "uuid": uuid, "trace": [], "shape_match": shapeMatch,
+        "match_options": {
+            "mode": mode,
+            "turn_penalty_factor": turnPenaltyFactor,
+            "breakage_distance": breakageDist,
+            "beta": beta,
+            "sigma_z": sigmaZ,
+            "search_radius": searchRadius,
+            "gps_accuracy": accuracy}}
+    trueRouteCoords = []
+    resampledCoords = []
+    gpsRouteCoords = []
+    displacementLines = []
+    lonAdjs = []
+    latAdjs = []
+    noiseLookback = int(np.ceil(30 / (sampleRate + 2)))
+    sttm = int(t.time()) - 86400   # yesterday
+    seconds = 0
+    shapeIndexCounter = 0
     for i, edge in enumerate(edges):
-
-        dist = edge['length']
-        speed = edge['speed']
-
-        beginShapeIndex = edge['begin_shape_index']
-        endShapeIndex = edge['end_shape_index']
-        lon, lat = coords[endShapeIndex]
-
         if i == 0:
-            st_lon, st_lat = coords[beginShapeIndex]
-
-        if stddev > 0:
-            avgLat = np.mean(np.array(coords)[:, 1])
-            # approx. 111.111 km per deg lon unless very close to the poles
-            stddevLon = stddev / 111.111
-            # approx 111.111 km * cos(lat) per deg lat
-            stddevLat = stddev / (111.111 * np.cos(avgLat))
-            lon += np.random.normal(scale=stddevLon)
-            lat += np.random.normal(scale=stddevLat)
-        dur = dist / speed * 3600.0
-        time = sttm + dur
-        time = int(round(time))
-        if i == 0:
-            st_lon, st_lat = coords[beginShapeIndex]
-            jsonDict["trace"].append(
-                {"lat": st_lat, "lon": st_lon, "time": sttm, "accuracy": min(
-                    5, stddev * 1e3)})
-        jsonDict["trace"].append(
-            {"lat": lat, "lon": lon, "time": time, "accuracy": min(
-                5, stddev * 1e3)})
-        sttm = time
+            trueCoords = shapeCoords[edge['begin_shape_index']]
+            trueRouteCoords.append(trueCoords)
+        trueCoords = shapeCoords[edge['end_shape_index']]
+        trueRouteCoords.append(trueCoords)
+        edgeShapeIndices = []
+        for j, coordPair in enumerate(edge['oneSecCoords']):
+            if (not seconds % sampleRate) | (
+                (i + 1 == len(dfEdges)) &
+                (j + 1 == len(edge['oneSecCoords']))
+            ):
+                lon, lat = coordPair
+                resampledCoords.append([lon, lat])
+                if noise > 0:
+                    projLon, projLat = transform(llProj, mProj, lon, lat)
+                    while True:
+                        lonAdj = np.random.normal(scale=noise)
+                        latAdj = np.random.normal(scale=noise)
+                        if shapeIndexCounter == 0:
+                            noiseQuad = [np.sign(lonAdj), np.sign(latAdj)]
+                            break
+                        elif [np.sign(lonAdj), np.sign(latAdj)] == noiseQuad:
+                            break
+                    lonAdjs.append(lonAdj)
+                    latAdjs.append(latAdj)
+                    newProjLon = projLon + np.mean(lonAdjs[-noiseLookback:])
+                    newProjLat = projLat + np.mean(latAdjs[-noiseLookback:])
+                    projLon, projLat = newProjLon, newProjLat
+                    lon, lat = transform(mProj, llProj, projLon, projLat)
+                time = sttm + seconds
+                lat = round(lat, 6)
+                lon = round(lon, 6)
+                jsonDict["trace"].append({
+                    "lat": lat, "lon": lon, "time": time})
+                gpsRouteCoords.append([lon, lat])
+                displacementLines.append([coordPair, [lon, lat]])
+                edgeShapeIndices.append(shapeIndexCounter)
+                shapeIndexCounter += 1
+            seconds += 1
 
     return jsonDict
+
+def convert_coords_to_meters(coords, localEpsg, inputOrder='lonlat'):
+    if inputOrder == 'latlon':
+        indices = [1, 0]
+    elif inputOrder == 'lonlat':
+        indices = [0, 1]
+    else:
+        print('"inputOrder" param cannot be processed')
+    inProj = Proj(init='epsg:4326')
+    outProj = Proj(init='epsg:{0}'.format(localEpsg))
+    projCoords = [
+        transform(inProj, outProj, coord[indices[0]], coord[indices[1]])
+        for coord in coords]
+    return projCoords
+
+def get_coords_per_second(shapeCoords, edges, localEpsg):
+    mProj = Proj(init='epsg:{0}'.format(localEpsg))
+    llProj = Proj(init='epsg:4326')
+    coords = shapeCoords
+    projCoords = convert_coords_to_meters(coords, localEpsg=localEpsg)
+    for i, edge in enumerate(edges):
+        subSegmentCoords = []
+        if i == 0:
+            subSegmentCoords.append(coords[edge['begin_shape_index']])
+        dist = edge['length']
+        distMeters = dist * 1e3
+        speed = edge['speed']
+        mPerSec = speed * 1e3 / 3600.0
+        beginShapeIndex = edge['begin_shape_index']
+        endShapeIndex = edge['end_shape_index']
+        if (beginShapeIndex >= len(coords) - 1) | \
+           (endShapeIndex >= len(coords)):
+            continue
+        line = LineString(projCoords[beginShapeIndex:endShapeIndex + 1])
+        seconds = 0
+        while mPerSec * seconds < distMeters:
+            seconds += 1
+            newPoint = line.interpolate(mPerSec * seconds)
+            newLon, newLat = transform(mProj, llProj, newPoint.x, newPoint.y)
+            subSegmentCoords.append([newLon, newLat])
+        if i == len(edges) - 1:
+            subSegmentCoords.append(coords[edge['end_shape_index']])
+        edge['oneSecCoords'] = subSegmentCoords
+        edge['numOneSecCoords'] = len(subSegmentCoords)
+    return edges
 
 def get_route_shape(stLat, stLon, endLat, endLon):
     jsonDict = {"locations": [
@@ -99,8 +175,8 @@ def get_trace_attrs(shape):
     matched = requests.get(baseUrl, params=payload)
     edges = matched.json()['edges']
     print(matched.url)
-    return edges
-
+    matchedPts = decode(matched.json()['shape'])
+    return edges, matchedPts
 
 if __name__ == '__main__':
   try:
@@ -110,9 +186,10 @@ if __name__ == '__main__':
     lon2 = sys.argv[4] 
     shape = get_route_shape(lat1, lon1, lat2, lon2)
     print("")
-    edges = get_trace_attrs(shape)
+    edges, shapeCoords = get_trace_attrs(shape)
     print("")
-    report_json = synthesize_gps(edges, shape)
+    edges = get_coords_per_second(shapeCoords, edges, '2768')
+    report_json = synthesize_gps(edges, shapeCoords)
     payload = {"json": json.dumps(report_json, separators=(',', ':'))}
     baseUrl = 'http://localhost:8001/report?'
     matched_segs = requests.get(baseUrl, params=payload)
