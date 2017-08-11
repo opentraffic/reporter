@@ -128,6 +128,8 @@ docker run -d --net opentraffic -p 9092:9092 -e "KAFKA_ADVERTISED_HOST_NAME=loca
 cat YOUR_FLAT_FILE | py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 --key-with 'lambda line: json.loads(line)["id"]' -
 ```
 
+Notice the number `4` appearing multiple times in the above `docker run` command. This configures the number of partitions in each topic (its essentially akin to parallelism). You can increase or decrease this however you like for your particular system. The first topic `raw:4:1`, because it has 4 paritions must be keyed by uuid, as noted below. If you are not keying your input in this way please set it to `raw:1:1`.
+
 ### Kafka
 
 We use kafka streams as the input mechanism to the reporter. You'll notice above that we rely on 3 topics being present. Its important that, if you are running your own Kafka infrastructure, that either the first topic is keyed by the uuid/vehicle id or that you only run a single partition in this topic. The reason for that is to prevent messages from arriving at the second topic in an out of order fashion.
@@ -155,6 +157,20 @@ usage: kafka-reporter
  -t,--topics <arg>            A comma separated list of topics listed in the order they are operated on in the kafka stream.The first topic is the raw unformatted input messages. The second is the formatted messages. The third is segments. The fourth is the anonymised segments.
  -u,--reporter-url <arg>      The url to send batched/windowed portions of a given keys points to.
 ```
+
+#### Maintainance
+
+If you run kafka locally alot it can start to get out of control with respect to both number of containers and disk space etc. If you want to kill off all of your containers try this:
+
+    docker rm -f $(docker ps -qa);
+    
+If you want to remove all of your various versions of docker images try this:
+
+    docker rmi -f $(docker images -q)
+    
+Finally if your disk is starting to fill up you can tell docker to free all of that space by doing:
+
+    docker volume prune
 
 ### Exposed Ports/Services
 * the container exposes port 8002 for the reporter python and docker-compose maps that port to your localhost
@@ -223,4 +239,8 @@ docker push opentraffic/reporter:test
 
 ## Authentication
 
-Currently we only support a rudimentary form of authentication between the reporter and the datastore. The idea is that the reporter will be run on premisis (ie. by fleet operator) and will then need to authenticate itself with the centralized datastore architecture. For now this is done via a `secret_key` query parameter in the reporters request url to the datastore. The datastore must be configured to do the authentication. The reporter gets the url for the datastore from an environment variable. This means that adding authentication only requires that one change this url to include the `secret_key` query parameter.
+Currently we only support a rudimentary form of authentication between the reporter and the datastore. The idea is that the reporter will be run on premisis (ie. by fleet operator) and will then need to authenticate itself with the centralized datastore architecture. For now this is done via s3 authentication where fleet operators will be given keys to access s3. More info about connecting the reporter to s3 can be found by running the kafka-reporter without argument to see configuration parameter.
+
+## Configuration
+
+The reporter works by using an algorithm called map matching to take gps traces and compute the paths they took given a backing route network. The route network in this case is provided by the [valhalla](https://github.com/valhalla) library which is used to do the map matching algorithm. The algorithm has a number of configuration parameters which can be tuned to the particular use-cases found within the input data. Currently these values are set to sensible defaults and are baked into the docker container. To make changes to these values you'll need to change the `Dockerfile` and build your own container with custom values. These values are set via the `valhalla_build_config` command within the `Dockerfile`. To see the different values for map matching you can run `valhalla_build_config` and have a look at the various `meili` options.
