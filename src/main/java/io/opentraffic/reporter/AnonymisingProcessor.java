@@ -4,6 +4,8 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -31,8 +33,8 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
   private static final String ANONYMISER_STORE_NAME = "anonymise";
   public static StateStoreSupplier<?> GetStore() {
     return Stores.create(ANONYMISER_STORE_NAME).
-        withKeys(new TimeQuantisedTiledSegmentPair.Serder()).
-        withValues(new Segment.Serder()).
+        withKeys(new TimeQuantisedTile.Serder()).
+        withValues(new Segment.ListSerder()).
         inMemory().build();
   }
 
@@ -44,7 +46,6 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
   private final boolean bucket;   //if the output should go to an s3 bucket
   private final String aws_key;   //needed for s3 output
   private final String aws_secret;//needed for s3 output
-  
 
   public AnonymisingProcessor(CommandLine cmd) {
     privacy = Integer.parseInt(cmd.getOptionValue("privacy"));
@@ -81,98 +82,114 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
   public Processor<String, Segment> get() {
     return new Processor<String, Segment>() {
       private ProcessorContext context;
-      private KeyValueStore<TimeQuantisedTiledSegmentPair, Segment> store;
+      private KeyValueStore<TimeQuantisedTile, ArrayList<Segment>> store;
       
       @SuppressWarnings("unchecked")
       @Override
       public void init(ProcessorContext context) {
         this.context = context;
-        this.store = (KeyValueStore<TimeQuantisedTiledSegmentPair, Segment>) context.getStateStore(ANONYMISER_STORE_NAME);
+        this.store = (KeyValueStore<TimeQuantisedTile, ArrayList<Segment>>) context.getStateStore(ANONYMISER_STORE_NAME);
         this.context.schedule(interval);
       }
 
       @Override
       public void process(String key, Segment value) {
         //for each time bucket this segment touches
-        List<TimeQuantisedTiledSegmentPair> tiles = TimeQuantisedTiledSegmentPair.getTiles(value, quantisation);
-        for(TimeQuantisedTiledSegmentPair tile : tiles) {
+        List<TimeQuantisedTile> tiles = TimeQuantisedTile.getTiles(value, quantisation);
+        for(TimeQuantisedTile tile : tiles) {
           //get this segment from the store
-          Segment segment = store.get(tile);
+          ArrayList<Segment> segments = store.get(tile);
           //if its not there make one
-          if(segment == null)
-            segment = value;
-          //if it is combine them
-          else
-            segment.combine(value);
+          if(segments == null)
+            segments = new ArrayList<Segment>(1);
+          //keep this new one
+          segments.add(value);
           //put it back in the store
-          store.put(tile, segment);
+          store.put(tile, segments);
+        }
+      }
+      
+      private void clean(ArrayList<Segment> segments) {
+        //delete ranges of ids that dont have enough counts to make the privacy requirement
+        int start = 0;
+        for(int i = 0; i < segments.size(); i++) {
+          Segment s = segments.get(start);
+          Segment e = segments.get(i);
+          //we are onto a new range or the last one
+          if(s.id != e.id || s.next_id != e.next_id || i == segments.size() - 1) {
+            //if its the last range we need i to be as if its the next segment pair
+            if(i == segments.size() - 1)
+              i++;
+            //didnt make the cut
+            if(i - start < privacy) {
+              segments.subList(start,  i).clear();
+              i = start;
+            }//did make the cut
+            else
+              start = i;
+          }
+        }
+      }
+      
+      private void store(TimeQuantisedTile tile, ArrayList<Segment> segments) {
+        //build up the payload
+        StringBuffer buffer = new StringBuffer(segments.size() * 64);
+        buffer.append(Segment.columnLayout());
+        for(Segment segment : segments)
+          segment.appendToStringBuffer(buffer, source);
+        
+        //figure out some naming
+        String tile_name = Long.toString(tile.time_range_start) + '_' +
+            Long.toString(tile.time_range_start + quantisation - 1) + '/' + 
+            Long.toString(tile.getTileLevel()) + '/' + Long.toString(tile.getTileIndex());
+        String file_name = source + '.' + UUID.randomUUID().toString();
+        
+        //jettison the tiles to external storage
+        try {
+          //put it to s3
+          if(bucket) {
+            logger.debug("PUTting tile to " + output + '/' + tile_name + '/' + file_name);
+            StringEntity body = new StringEntity(buffer.toString(), ContentType.create("text/plain", Charset.forName("UTF-8")));
+            HttpClient.AwsPUT(output, tile_name + '/' + file_name, body, aws_key, aws_secret);
+          }//post it to non s3
+          else if(output.startsWith("http://") || output.startsWith("https://")) {
+            logger.debug("POSTing tile to " + output + '/' + tile_name + '/' + file_name);
+            StringEntity body = new StringEntity(buffer.toString(), ContentType.create("text/plain", Charset.forName("UTF-8")));
+            HttpClient.POST(output + '/' + file_name, body);
+          }//write a new file in a dir
+          else {
+            logger.debug("Writing tile to " + output + '/' + tile_name + '/' + file_name);
+            File dir = new File(output + '/' + tile_name);
+            dir.mkdirs();
+            File tile_file = new File(output + '/' + tile_name + '/' + file_name);
+            BufferedWriter writer = new BufferedWriter(new FileWriter(tile_file));            
+            writer.write(buffer.toString());
+            writer.flush();
+            writer.close();
+          }
+        }
+        catch(Exception e) {
+          logger.error("Couldn't write " + tile_name + "/" + file_name + ": " + e.getMessage());
         }
       }
 
       @Override
       public void punctuate(long timestamp) {
-        //a place to hold the tiles in memory...
-        //TODO: figure out a way to use the range iterator and then just iterate over a given tiles time slices
-        Map<String, StringBuffer> tiles = new HashMap<String, StringBuffer>();
-        //go through all the segments
-        KeyValueIterator<TimeQuantisedTiledSegmentPair, Segment> it = store.all();
+        //go through all the tiles
+        KeyValueIterator<TimeQuantisedTile, ArrayList<Segment> > it = store.all();
         while(it.hasNext()) {
           //if we meet the privacy requirement allow this segment into the tile
-          KeyValue<TimeQuantisedTiledSegmentPair, Segment> kv = it.next();
-          TimeQuantisedTiledSegmentPair key = kv.key;
-          Segment segment = kv.value;
-          if(kv.value.count >= privacy) {
-            String tile_name =  Long.toString(key.time_range_start) + '_' +
-              Long.toString(key.time_range_start + quantisation - 1) + '/' + 
-              Long.toString(key.getTileLevel()) + '/' + Long.toString(key.getTileId());
-            StringBuffer tile = tiles.get(tile_name);
-            //there wasnt already a tile made
-            if(tile == null) {
-              //make one with the column layout so someone can read this
-              tile = new StringBuffer(Segment.columnLayout());
-              tiles.put(tile_name, tile);
-            }
-            //add this entry onto the tile
-            segment.appendToStringBuffer(tile, source);
-          }
+          KeyValue<TimeQuantisedTile, ArrayList<Segment>> kv = it.next();
+          //sort it by the ids
+          Collections.sort(kv.value);
+          //delete segment pairs that dont meet the privacy requirement
+          clean(kv.value);
+          //store this tile
+          store(kv.key, kv.value);
         }
         it.close();
         //we purge the entire key value store, otherwise kvstore would have an enourmous long tail
-        store.flush();
-        
-        //jettison the tiles to external storage
-        String file_name = source + '.' + UUID.randomUUID().toString();
-        Iterator<Entry<String, StringBuffer> > tile_it = tiles.entrySet().iterator();
-        while(tile_it.hasNext()) {
-          Entry<String, StringBuffer> kv = tile_it.next();
-          try {
-            //put it to s3
-            if(bucket) {
-              logger.debug("PUTting tile to " + output + '/' + kv.getKey() + '/' + file_name);
-              StringEntity body = new StringEntity(kv.getValue().toString(), ContentType.create("text/plain", Charset.forName("UTF-8")));
-              HttpClient.AwsPUT(output, kv.getKey() + '/' + file_name, body, aws_key, aws_secret);
-            }//post it to non s3
-            else if(output.startsWith("http://") || output.startsWith("https://")) {
-              logger.debug("POSTing tile to " + output + '/' + kv.getKey() + '/' + file_name);
-              StringEntity body = new StringEntity(kv.getValue().toString(), ContentType.create("text/plain", Charset.forName("UTF-8")));
-              HttpClient.POST(output + '/' + file_name, body);
-            }//write a new file in a dir
-            else {
-              logger.debug("Writing tile to " + output + '/' + kv.getKey() + '/' + file_name);
-              File dir = new File(output + '/' + kv.getKey());
-              dir.mkdirs();
-              File tile_file = new File(output + '/' + kv.getKey() + '/' + file_name);
-              BufferedWriter writer = new BufferedWriter(new FileWriter(tile_file));            
-              writer.write(kv.getValue().toString());
-              writer.flush();
-              writer.close();
-            }
-          }
-          catch(Exception e) {
-            logger.error("Couldn't write tile: " + e.getMessage());
-          }
-        }
-        
+        store.flush();        
       }
 
       @Override

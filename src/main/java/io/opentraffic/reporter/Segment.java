@@ -1,6 +1,7 @@
 package io.opentraffic.reporter;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Map;
 
 import org.apache.kafka.common.serialization.Deserializer;
@@ -10,21 +11,21 @@ import org.apache.kafka.common.serialization.Serializer;
 /*
  * this is used as a histogram entry in a given tile
  */
-public class Segment {
+public class Segment implements Comparable<Segment>{
   
   public static long INVALID_SEGMENT_ID = 0x3fffffffffffL;
   public long id;         //main segment id
+  public long next_id;    //optional next, could be invalid
   public long min, max;   //epoch seconds
   public int duration;    //epoch seconds
   public int length;      //meters
   public int queue;       //meters
   public int count;       //how many
-  public static final int SIZE = 8 + 8 + 8 + 4 + 4 + 4 + 4;
-  public Long next_id;    //optional next
+  public static final int SIZE = 8 + 8 + 8 + 8 + 4 + 4 + 4 + 4;
   
   public Segment(long id, Long next_id, double start, double end, int length, int queue) {
     this.id = id;
-    this.next_id = next_id;
+    this.next_id = next_id == null ? INVALID_SEGMENT_ID : next_id;
     this.min = (long)Math.floor(start);
     this.max = (long)Math.ceil(end);
     this.duration = (int)Math.round(end - start);
@@ -33,9 +34,9 @@ public class Segment {
     this.count = 1;
   }
   
-  public Segment(long id, long min, long max, int duration, int length, int queue, int count, Long next_id) {
+  public Segment(long id, Long next_id, long min, long max, int duration, int length, int queue, int count) {
     this.id = id;
-    this.next_id = next_id;
+    this.next_id = next_id == null ? INVALID_SEGMENT_ID : next_id;
     this.min = min;
     this.max = max;
     this.duration = duration;
@@ -44,15 +45,9 @@ public class Segment {
     this.count = 1;
   }
   
-  public void combine(Segment s) {
-    double a = this.count/(double)(this.count + s.count);
-    double b = s.count/(double)(this.count + s.count);
-    this.min = Math.min(this.min, s.min);
-    this.max = Math.max(this.max, s.max);
-    this.duration = (int)Math.round(this.duration * a + s.duration * b);
-    this.length = (int)Math.round(this.length * a + s.length * b);
-    this.queue = (int)Math.round(this.queue * a + s.queue * b);    
-    this.count += s.count;
+  //first 3 bits are hierarchy level then 22 bits of tile id. the rest we want zero'd out
+  public long getTileId() {    
+    return id & 0x1FFFFFF;
   }
   
   public boolean valid() {
@@ -66,6 +61,12 @@ public class Segment {
     return b.toString();
   }
   
+  @Override
+  public int compareTo(Segment o) {
+    int cmp = Long.compare(id, o.id); if(cmp != 0) return cmp;
+    return Long.compare(next_id, o.next_id);    
+  }
+  
   public static String columnLayout() {
     return "segment_id,next_segment_id,duration,count,length,queue_length,minimum_timestamp,maximum_timestamp,source,vehicle_type";
   }
@@ -73,7 +74,7 @@ public class Segment {
   public void appendToStringBuffer(StringBuffer buffer, String source) {
     buffer.append('\n');
     buffer.append(Long.toString(id)); buffer.append(',');
-    if(next_id != null)
+    if(next_id != INVALID_SEGMENT_ID)
       buffer.append(next_id);
     buffer.append(',');
     buffer.append(Integer.toString(duration)); buffer.append(',');
@@ -86,12 +87,28 @@ public class Segment {
     //TODO: parse this in the formatting processor or get it as a program argument
     buffer.append("AUTO");
   }
-
+  
   public static class Serder implements Serde<Segment> {
     @Override
     public void configure(Map<String, ?> configs, boolean isKey) { }    
     @Override
     public void close() { }
+    
+    public static void put(ByteBuffer buffer, Segment s) {
+      buffer.putLong(s.id);
+      buffer.putLong(s.next_id);
+      buffer.putLong(s.min);
+      buffer.putLong(s.max);
+      buffer.putInt(s.duration);
+      buffer.putInt(s.length);
+      buffer.putInt(s.queue);
+      buffer.putInt(s.count);
+    }
+    
+    public static Segment get(ByteBuffer buffer) {
+      return new Segment(buffer.getLong(), buffer.getLong(), buffer.getLong(), buffer.getLong(), 
+          buffer.getInt(), buffer.getInt(), buffer.getInt(), buffer.getInt());
+    }
 
     public Serializer<Segment> serializer() {
       return new Serializer<Segment>() {
@@ -101,16 +118,8 @@ public class Segment {
         public byte[] serialize(String topic, Segment s) {
           if(s == null)
             return null;
-          ByteBuffer buffer = ByteBuffer.allocate(SIZE + (s.next_id == null ? 0 : 8));
-          buffer.putLong(s.id);
-          buffer.putLong(s.min);
-          buffer.putLong(s.max);
-          buffer.putInt(s.duration);
-          buffer.putInt(s.length);
-          buffer.putInt(s.queue);
-          buffer.putInt(s.count);
-          if(s.next_id != null)
-            buffer.putLong(s.next_id);
+          ByteBuffer buffer = ByteBuffer.allocate(SIZE);
+          Serder.put(buffer, s);
           return buffer.array();
         }
         @Override
@@ -127,9 +136,7 @@ public class Segment {
           if(bytes == null)
             return null;
           ByteBuffer buffer = ByteBuffer.wrap(bytes);
-          return new Segment(buffer.getLong(), buffer.getLong(), buffer.getLong(), 
-              buffer.getInt(), buffer.getInt(), buffer.getInt(), buffer.getInt(),
-              buffer.hasRemaining() ? buffer.getLong() : null);
+          return Serder.get(buffer);
         }
         @Override
         public void close() { }
@@ -138,4 +145,49 @@ public class Segment {
 
   }
 
+  public static class ListSerder implements Serde<ArrayList<Segment>> {
+    @Override
+    public void configure(Map<String, ?> configs, boolean isKey) { }    
+    @Override
+    public void close() { }
+
+    public Serializer<ArrayList<Segment>> serializer() {
+      return new Serializer<ArrayList<Segment>>() {
+        @Override
+        public void configure(Map<String, ?> configs, boolean isKey) { }
+        @Override
+        public byte[] serialize(String topic, ArrayList<Segment> segments) {
+          if(segments == null)
+            return null;
+          ByteBuffer buffer = ByteBuffer.allocate(4 + SIZE * segments.size());
+          buffer.putInt(segments.size());
+          for(Segment s : segments)
+            Serder.put(buffer, s);
+          return buffer.array();
+        }
+        @Override
+        public void close() { }        
+      };
+    }
+
+    public Deserializer<ArrayList<Segment>> deserializer() {
+      return new Deserializer<ArrayList<Segment>>() {
+        @Override
+        public void configure(Map<String, ?> configs, boolean isKey) { }
+        @Override
+        public ArrayList<Segment> deserialize(String topic, byte[] bytes) {
+          if(bytes == null)
+            return null;
+          ByteBuffer buffer = ByteBuffer.wrap(bytes);
+          ArrayList<Segment> segments = new ArrayList<Segment>(buffer.getInt());
+          for(int i = 0; i < segments.size(); i++)
+            segments.add(Serder.get(buffer));
+          return segments;
+        }
+        @Override
+        public void close() { }
+      };
+    }
+  }
+  
 }
