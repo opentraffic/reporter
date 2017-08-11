@@ -34,6 +34,10 @@ while getopts ":s:f:b:t:w:" opt; do
   esac
 done
 
+hash=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)
+key_with='lambda line: line.split("|")[1]'
+value_with="lambda line: re.sub(r'(.*:[0-5][0-9]\\|)([0-9]+)(\\|.*)', r'\\1\\2${hash}\\3', line)"
+
 if [[ -z ${s3_dir} ]] || [[ -z ${file_re} ]] || [[ -z ${bootstrap} ]] || [[ -z ${topic} ]]; then
   echo "Missing required option" 1>&2 && usage
 fi
@@ -47,7 +51,7 @@ for file in ${files}; do
   #download in the foreground
   echo "Retrieving ${file} from s3" && aws s3 cp ${s3_dir}${file} . &> /dev/null
   #send to kafka producer
-  zcat ${file} | sort | ./cat_to_kafka.py --bootstrap ${bootstrap} --topic ${topic} --key-with 'lambda line: line.split("|")[1]' -
+  zcat ${file} | sort | ./cat_to_kafka.py --bootstrap ${bootstrap} --topic ${topic} --key-with "${key_with}" --value-with "${value_with}" -
   #wait around a little for the system to process it
   sleep ${timeout}
   #done with this
