@@ -104,6 +104,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         //TODO: dont ignore the mode...
         //forward on each segment pair
         if(reports != null) {
+          int reported = 0;
           for(JsonNode report : reports) {
             try {
               //make a segment pair with one observation
@@ -114,9 +115,10 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
                   report.get("length").asInt(), report.get("queue_length").asInt());
               //the key is the segment pair so processors will only ever see certain tiles
               //this seeks to maximize the number of possible segments in a given tile
-              if(segment.valid())
-                context.forward(Long.toString(segment.id) + ' ' + 
-                  (segment.next_id != null ? Long.toString(segment.next_id) : "null"), segment);
+              if(segment.valid()) {
+                context.forward(Long.toString(segment.id) + ' ' +  Long.toString(segment.next_id), segment);
+                reported++;
+              }
               else
                 logger.warn("Got back invalid segment: " + segment.toString());
             }
@@ -124,6 +126,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
               logger.error("Unusable reported segment pair: " + report.toString() + " (" + e.getMessage() + ")");
             }
           }
+          logger.debug("Reported on " + reported + " segment pairs");
         }//we got something unexpected
         else if(result != null) {
           logger.error("Unusable report " + result.toString());
