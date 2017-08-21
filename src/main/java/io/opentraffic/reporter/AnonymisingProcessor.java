@@ -101,7 +101,14 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
           //keep this new one
           segments.add(value);
           //put it back in the store
-          store.put(tile, segments);
+          try {
+            store.put(tile, segments);
+          }//or fail and flush to sync
+          catch (Exception e) {
+            logger.error("Failed to store segments for tile flushing to sync: " + e.getMessage());
+            store.delete(tile);
+            store(tile, segments);
+          }
         }
       }
       
@@ -165,7 +172,7 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
           }
         }
         catch(Exception e) {
-          logger.error("Couldn't write " + tile_name + "/" + file_name + ": " + e.getMessage());
+          logger.error("Couldn't flush tile to sync " + tile_name + "/" + file_name + ": " + e.getMessage());
         }
       }
 
@@ -186,7 +193,7 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
         }
         it.close();
         //we purge the entire key value store, otherwise kvstore would have an enourmous long tail
-        store.flush();        
+        store.flush();
       }
 
       @Override
