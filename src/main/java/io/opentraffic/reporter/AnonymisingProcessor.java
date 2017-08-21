@@ -184,8 +184,9 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
           Collections.sort(kv.value);
           //delete segment pairs that dont meet the privacy requirement
           clean(kv.value);
-          //store this tile
-          store(kv.key, kv.value);
+          //store this tile if it has data
+          if(!kv.value.isEmpty())
+            store(kv.key, kv.value);
         }
         it.close();
         //we purge the entire key value store, otherwise kvstore would have an enourmous long tail
