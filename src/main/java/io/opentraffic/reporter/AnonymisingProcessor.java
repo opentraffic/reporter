@@ -6,15 +6,11 @@ import java.io.FileWriter;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.UUID;
 
 import org.apache.commons.cli.CommandLine;
-import org.apache.http.Header;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.kafka.streams.KeyValue;
@@ -105,7 +101,14 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
           //keep this new one
           segments.add(value);
           //put it back in the store
-          store.put(tile, segments);
+          try {
+            store.put(tile, segments);
+          }//or fail and flush to sync
+          catch (Exception e) {
+            logger.warn("Failed to store segments for tile, flushing to sync instead: " + e.getMessage());
+            store.delete(tile);
+            store(tile, segments);
+          }
         }
       }
       
@@ -148,17 +151,17 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
         try {
           //put it to s3
           if(bucket) {
-            logger.debug("PUTting tile to " + output + '/' + tile_name + '/' + file_name);
+            logger.info("PUTting tile to " + output + '/' + tile_name + '/' + file_name);
             StringEntity body = new StringEntity(buffer.toString(), ContentType.create("text/plain", Charset.forName("UTF-8")));
             HttpClient.AwsPUT(output, tile_name + '/' + file_name, body, aws_key, aws_secret);
           }//post it to non s3
           else if(output.startsWith("http://") || output.startsWith("https://")) {
-            logger.debug("POSTing tile to " + output + '/' + tile_name + '/' + file_name);
+            logger.info("POSTing tile to " + output + '/' + tile_name + '/' + file_name);
             StringEntity body = new StringEntity(buffer.toString(), ContentType.create("text/plain", Charset.forName("UTF-8")));
             HttpClient.POST(output + '/' + file_name, body);
           }//write a new file in a dir
           else {
-            logger.debug("Writing tile to " + output + '/' + tile_name + '/' + file_name);
+            logger.info("Writing tile to " + output + '/' + tile_name + '/' + file_name);
             File dir = new File(output + '/' + tile_name);
             dir.mkdirs();
             File tile_file = new File(output + '/' + tile_name + '/' + file_name);
@@ -169,7 +172,7 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
           }
         }
         catch(Exception e) {
-          logger.error("Couldn't write " + tile_name + "/" + file_name + ": " + e.getMessage());
+          logger.error("Couldn't flush tile to sync " + tile_name + "/" + file_name + ": " + e.getMessage());
         }
       }
 
@@ -184,12 +187,13 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
           Collections.sort(kv.value);
           //delete segment pairs that dont meet the privacy requirement
           clean(kv.value);
-          //store this tile
-          store(kv.key, kv.value);
+          //store this tile if it has data
+          if(!kv.value.isEmpty())
+            store(kv.key, kv.value);
         }
         it.close();
         //we purge the entire key value store, otherwise kvstore would have an enourmous long tail
-        store.flush();        
+        store.flush();
       }
 
       @Override
