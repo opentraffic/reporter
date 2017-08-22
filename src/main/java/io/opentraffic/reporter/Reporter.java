@@ -162,7 +162,8 @@ public class Reporter {
     //it forwards the pair onto to be sent to the datastore
     builder.addSource("AnonymiserSource", new StringDeserializer(), segmentSerder.deserializer(), topics[2]);
     builder.addProcessor("Anonymiser", new AnonymisingProcessor(cmd), "AnonymiserSource");
-    builder.addStateStore(AnonymisingProcessor.GetStore(), "Anonymiser");
+    builder.addStateStore(AnonymisingProcessor.GetTileStore(), "Anonymiser");
+    builder.addStateStore(AnonymisingProcessor.GetMapStore(), "Anonymiser");
     
     //start the topology
     KafkaStreams streams = new KafkaStreams(builder, props);

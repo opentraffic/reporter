@@ -3,6 +3,7 @@ package io.opentraffic.reporter;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -13,6 +14,7 @@ import java.util.UUID;
 import org.apache.commons.cli.CommandLine;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.kafka.common.errors.RecordTooLargeException;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.processor.Processor;
 import org.apache.kafka.streams.processor.ProcessorContext;
@@ -26,11 +28,30 @@ import org.apache.log4j.Logger;
 public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> {
   
   private final static Logger logger = Logger.getLogger(AnonymisingProcessor.class);
-  private static final String ANONYMISER_STORE_NAME = "anonymise";
-  public static StateStoreSupplier<?> GetStore() {
-    return Stores.create(ANONYMISER_STORE_NAME).
-        withKeys(new TimeQuantisedTile.Serder()).
+  private static final String ANONYMISER_TILE_STORE_NAME = "anonymise";
+  private static final String ANONYMISER_MAP_STORE_NAME = "anonymise_map";
+  
+  //so originally we stored just a map of the given tile to the list of all the segment pairs in the tile
+  //this was great because it was simple, but the list can get pretty large over long time durations
+  //the problem with a long list is that the size grows to the point that kafka doesnt want to store it
+  //it likes to have "messages" (in this case values) which are less than 1mb in size
+  //you can increase this but you'll have to make a guess as to what the max is supposed to be
+  //its also unclear what raising this max does to other parts of the system, so we needed to work around it
+  //the work around is to, when you run out of space, make a new place to store segments for the same tile
+  //thats what we use the map below to do. we also do some naming tricks to make it easy to put all this
+  //back together before we flush it to the datastore
+  
+  public static StateStoreSupplier<?> GetTileStore() {
+    return Stores.create(ANONYMISER_TILE_STORE_NAME).
+        withByteBufferKeys().
         withValues(new Segment.ListSerder()).
+        inMemory().build();
+  }
+  
+  public static StateStoreSupplier<?> GetMapStore() {
+    return Stores.create(ANONYMISER_MAP_STORE_NAME).
+        withKeys(new TimeQuantisedTile.Serder()).
+        withIntegerValues().
         inMemory().build();
   }
 
@@ -78,13 +99,15 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
   public Processor<String, Segment> get() {
     return new Processor<String, Segment>() {
       private ProcessorContext context;
-      private KeyValueStore<TimeQuantisedTile, ArrayList<Segment>> store;
+      private KeyValueStore<ByteBuffer, ArrayList<Segment>> store;
+      private KeyValueStore<TimeQuantisedTile, Integer> map;
       
       @SuppressWarnings("unchecked")
       @Override
       public void init(ProcessorContext context) {
         this.context = context;
-        this.store = (KeyValueStore<TimeQuantisedTile, ArrayList<Segment>>) context.getStateStore(ANONYMISER_STORE_NAME);
+        this.store = (KeyValueStore<ByteBuffer, ArrayList<Segment>>) context.getStateStore(ANONYMISER_TILE_STORE_NAME);
+        this.map = (KeyValueStore<TimeQuantisedTile, Integer>) context.getStateStore(ANONYMISER_MAP_STORE_NAME);
         this.context.schedule(interval);
       }
 
@@ -93,8 +116,14 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
         //for each time bucket this segment touches
         List<TimeQuantisedTile> tiles = TimeQuantisedTile.getTiles(value, quantisation);
         for(TimeQuantisedTile tile : tiles) {
+          //turn the tile into a string name to get the current place we are dumping segments
+          Integer bucket_number = map.get(tile);
+          if(bucket_number == null)
+            bucket_number = new Integer(0);
+          ByteBuffer tile_bucket = tile.toByteBuffer(4);
+          tile_bucket.putInt(bucket_number);
           //get this segment from the store
-          ArrayList<Segment> segments = store.get(tile);
+          ArrayList<Segment> segments = store.get(tile_bucket);
           //if its not there make one
           if(segments == null)
             segments = new ArrayList<Segment>(1);
@@ -102,12 +131,19 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
           segments.add(value);
           //put it back in the store
           try {
-            store.put(tile, segments);
+            store.put(tile_bucket, segments);
           }//or fail and flush to sync
-          catch (Exception e) {
-            logger.warn("Failed to store segments for tile, flushing to sync instead: " + e.getMessage());
-            store.delete(tile);
-            store(tile, segments);
+          catch (RecordTooLargeException e) {
+            logger.info("Starting new time quantised tile bucket");
+            //new list of segments starting with the one that didnt fit
+            segments = new ArrayList<Segment>(1);
+            segments.add(value);
+            //next bucket to hold those segments
+            bucket_number++;
+            tile_bucket.position(tile_bucket.position() - 8);
+            //update the stores with this info
+            map.put(tile, bucket_number);
+            store.put(tile_bucket, segments);
           }
         }
       }
@@ -178,22 +214,31 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
 
       @Override
       public void punctuate(long timestamp) {
-        //go through all the tiles
-        KeyValueIterator<TimeQuantisedTile, ArrayList<Segment> > it = store.all();
+        //go through all the tile bucket combos
+        KeyValueIterator<TimeQuantisedTile, Integer> it = map.all();
         while(it.hasNext()) {
-          //if we meet the privacy requirement allow this segment into the tile
-          KeyValue<TimeQuantisedTile, ArrayList<Segment>> kv = it.next();
+          //figure out what tile we are on and what the last bucket is
+          KeyValue<TimeQuantisedTile, Integer> tile = it.next();
+          ByteBuffer tile_bucket = tile.key.toByteBuffer(4);
+          //collect all the observations across all buckets for this tile
+          ArrayList<Segment> segments = new ArrayList<Segment>(10);
+          for(int i = 0; i <= tile.value; i++) {
+            tile_bucket.putInt(i);
+            segments.addAll(store.get(tile_bucket));
+            tile_bucket.position(tile_bucket.position() - 8);
+          }
           //sort it by the ids
-          Collections.sort(kv.value);
+          Collections.sort(segments);
           //delete segment pairs that dont meet the privacy requirement
-          clean(kv.value);
+          clean(segments);
           //store this tile if it has data
-          if(!kv.value.isEmpty())
-            store(kv.key, kv.value);
+          if(!segments.isEmpty())
+            store(tile.key, segments);
         }
         it.close();
         //we purge the entire key value store, otherwise kvstore would have an enourmous long tail
         store.flush();
+        map.flush();
       }
 
       @Override
