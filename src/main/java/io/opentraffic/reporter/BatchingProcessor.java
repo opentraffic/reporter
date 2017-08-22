@@ -61,7 +61,9 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         else {
           batch.update(point);
           int length = batch.points.size();
-          forward(batch.report(key, url, REPORT_DIST, REPORT_COUNT, REPORT_TIME));
+          int reported = forward(batch.report(key, url, REPORT_DIST, REPORT_COUNT, REPORT_TIME));
+          if(reported > 0)
+            logger.info("Reported on " + reported + " segment pairs");
           if(batch.points.size() != length)
             logger.debug(key + " was trimmed from " + length + " down to " + batch.points.size());
         }
@@ -93,18 +95,21 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
           //TODO: dont actually report here, instead insert into a queue that a thread can drain asynchronously
           logger.debug("Evicting " + key + " as it was stale");
           Batch batch = store.delete(key);
-          if(batch != null)
-            forward(batch.report(key, url, 0, 2, 0));
+          if(batch != null) {
+            int reported = forward(batch.report(key, url, 0, 2, 0));
+            if(reported > 0)
+              logger.info("Reported on " + reported + " segment pairs during eviction");
+          }
         }
       }
       
-      private void forward(JsonNode result) {
+      private int forward(JsonNode result) {
         JsonNode datastore = result != null ? result.get("datastore") : null;
         JsonNode reports = datastore != null ? datastore.get("reports") : null;
+        int reported = 0;
         //TODO: dont ignore the mode...
         //forward on each segment pair
         if(reports != null) {
-          int reported = 0;
           for(JsonNode report : reports) {
             try {
               //make a segment pair with one observation
@@ -126,11 +131,11 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
               logger.error("Unusable reported segment pair: " + report.toString() + " (" + e.getMessage() + ")");
             }
           }
-          logger.debug("Reported on " + reported + " segment pairs");
         }//we got something unexpected
         else if(result != null) {
           logger.error("Unusable report " + result.toString());
         }
+        return reported;
       }
   
       @Override

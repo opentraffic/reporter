@@ -105,7 +105,7 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
             store.put(tile, segments);
           }//or fail and flush to sync
           catch (Exception e) {
-            logger.error("Failed to store segments for tile flushing to sync: " + e.getMessage());
+            logger.warn("Failed to store segments for tile, flushing to sync instead: " + e.getMessage());
             store.delete(tile);
             store(tile, segments);
           }
@@ -151,17 +151,17 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
         try {
           //put it to s3
           if(bucket) {
-            logger.debug("PUTting tile to " + output + '/' + tile_name + '/' + file_name);
+            logger.info("PUTting tile to " + output + '/' + tile_name + '/' + file_name);
             StringEntity body = new StringEntity(buffer.toString(), ContentType.create("text/plain", Charset.forName("UTF-8")));
             HttpClient.AwsPUT(output, tile_name + '/' + file_name, body, aws_key, aws_secret);
           }//post it to non s3
           else if(output.startsWith("http://") || output.startsWith("https://")) {
-            logger.debug("POSTing tile to " + output + '/' + tile_name + '/' + file_name);
+            logger.info("POSTing tile to " + output + '/' + tile_name + '/' + file_name);
             StringEntity body = new StringEntity(buffer.toString(), ContentType.create("text/plain", Charset.forName("UTF-8")));
             HttpClient.POST(output + '/' + file_name, body);
           }//write a new file in a dir
           else {
-            logger.debug("Writing tile to " + output + '/' + tile_name + '/' + file_name);
+            logger.info("Writing tile to " + output + '/' + tile_name + '/' + file_name);
             File dir = new File(output + '/' + tile_name);
             dir.mkdirs();
             File tile_file = new File(output + '/' + tile_name + '/' + file_name);
