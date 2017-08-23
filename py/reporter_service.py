@@ -171,7 +171,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
             successful_length = round((prior_length * 0.001),3) #convert meters to km
           else:
             #Excessive speed - log this as an error
-            sys.stderr.write("Speed exceeds 200kph.\n")
+            sys.stderr.write("Speed exceeds 200kph\n")
             #sys.stderr.write(json.dumps(trace))
             invalid_speed_count += 1
         #Log prior segments on local level not being reported; lets do a count and track prior_segment_ids
