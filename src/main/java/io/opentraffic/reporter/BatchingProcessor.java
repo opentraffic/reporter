@@ -63,7 +63,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
           int length = batch.points.size();
           int reported = forward(batch.report(key, url, REPORT_DIST, REPORT_COUNT, REPORT_TIME));
           if(reported > 0)
-            logger.info("Reported on " + reported + " segment pairs");
+            logger.debug("Reported on " + reported + " segment pairs");
           if(batch.points.size() != length)
             logger.debug(key + " was trimmed from " + length + " down to " + batch.points.size());
         }
@@ -98,7 +98,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
           if(batch != null) {
             int reported = forward(batch.report(key, url, 0, 2, 0));
             if(reported > 0)
-              logger.info("Reported on " + reported + " segment pairs during eviction");
+              logger.debug("Reported on " + reported + " segment pairs during eviction");
           }
         }
       }

@@ -3,7 +3,6 @@ package io.opentraffic.reporter;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
-import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,7 +13,6 @@ import java.util.UUID;
 import org.apache.commons.cli.CommandLine;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.kafka.common.errors.RecordTooLargeException;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.processor.Processor;
 import org.apache.kafka.streams.processor.ProcessorContext;
@@ -28,8 +26,8 @@ import org.apache.log4j.Logger;
 public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> {
   
   private final static Logger logger = Logger.getLogger(AnonymisingProcessor.class);
-  private static final String ANONYMISER_TILE_STORE_NAME = "anonymise";
-  private static final String ANONYMISER_MAP_STORE_NAME = "anonymise_map";
+  private static final String ANONYMISER_TILE_STORE_NAME = "anonymise_tile_slices";
+  private static final String ANONYMISER_MAP_STORE_NAME = "anonymise_max_slice";
   
   //so originally we stored just a map of the given tile to the list of all the segment pairs in the tile
   //this was great because it was simple, but the list can get pretty large over long time durations
@@ -43,7 +41,7 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
   
   public static StateStoreSupplier<?> GetTileStore() {
     return Stores.create(ANONYMISER_TILE_STORE_NAME).
-        withByteBufferKeys().
+        withKeys(new TimeQuantisedTile.Serder()).
         withValues(new Segment.ListSerder()).
         inMemory().build();
   }
@@ -52,7 +50,7 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
     return Stores.create(ANONYMISER_MAP_STORE_NAME).
         withKeys(new TimeQuantisedTile.Serder()).
         withIntegerValues().
-        inMemory().build();
+        persistent().build();
   }
 
   private final int privacy;      //number of observations required to make it into a tile
@@ -99,16 +97,34 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
   public Processor<String, Segment> get() {
     return new Processor<String, Segment>() {
       private ProcessorContext context;
-      private KeyValueStore<ByteBuffer, ArrayList<Segment>> store;
+      private KeyValueStore<TimeQuantisedTile, ArrayList<Segment>> store;
       private KeyValueStore<TimeQuantisedTile, Integer> map;
       
       @SuppressWarnings("unchecked")
       @Override
       public void init(ProcessorContext context) {
         this.context = context;
-        this.store = (KeyValueStore<ByteBuffer, ArrayList<Segment>>) context.getStateStore(ANONYMISER_TILE_STORE_NAME);
+        this.store = (KeyValueStore<TimeQuantisedTile, ArrayList<Segment>>) context.getStateStore(ANONYMISER_TILE_STORE_NAME);
         this.map = (KeyValueStore<TimeQuantisedTile, Integer>) context.getStateStore(ANONYMISER_MAP_STORE_NAME);
         this.context.schedule(interval);
+        
+        logger.error("Walking over map");
+        KeyValueIterator<TimeQuantisedTile, Integer> k = map.all();
+        while(k.hasNext()) {
+          KeyValue<TimeQuantisedTile, Integer> tile = k.next();
+          TimeQuantisedTile t = tile.key;
+          t.tile_slice = tile.value;
+          logger.error(t.toString());
+        }
+        k.close();
+        
+        logger.error("Walking over store");
+        KeyValueIterator<TimeQuantisedTile, ArrayList<Segment>> j = store.all();
+        while(j.hasNext()) {
+          KeyValue<TimeQuantisedTile, ArrayList<Segment>> tile = j.next();
+          logger.error(tile.key.toString());
+        }
+        j.close(); 
       }
 
       @Override
@@ -117,13 +133,12 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
         List<TimeQuantisedTile> tiles = TimeQuantisedTile.getTiles(value, quantisation);
         for(TimeQuantisedTile tile : tiles) {
           //turn the tile into a string name to get the current place we are dumping segments
-          Integer bucket_number = map.get(tile);
-          if(bucket_number == null)
-            bucket_number = new Integer(0);
-          ByteBuffer tile_bucket = tile.toByteBuffer(4);
-          tile_bucket.putInt(bucket_number);
+          Integer slice = map.get(tile);
+          if(slice == null) {
+            logger.info("Starting quantised tile bucket " + tile.toString());
+          }
           //get this segment from the store
-          ArrayList<Segment> segments = store.get(tile_bucket);
+          ArrayList<Segment> segments = store.get(tile);
           //if its not there make one
           if(segments == null)
             segments = new ArrayList<Segment>(1);
@@ -131,19 +146,24 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
           segments.add(value);
           //put it back in the store
           try {
-            store.put(tile_bucket, segments);
+            if(segments.size() > 20000)
+              throw new Exception("limiting the size");
+            store.put(tile, segments);
+            map.put(tile, tile.tile_slice);
           }//or fail and flush to sync
-          catch (RecordTooLargeException e) {
-            logger.info("Starting new time quantised tile bucket");
+          catch (Exception e) {
+            logger.error("Couldnt store " + Integer.toString(segments.size()) + " segments");
             //new list of segments starting with the one that didnt fit
             segments = new ArrayList<Segment>(1);
             segments.add(value);
-            //next bucket to hold those segments
-            bucket_number++;
-            tile_bucket.position(tile_bucket.position() - 8);
             //update the stores with this info
-            map.put(tile, bucket_number);
-            store.put(tile_bucket, segments);
+            tile.tile_slice++;
+            logger.info("Starting quantised tile bucket for " + tile.toString());
+            store.put(tile, segments);
+            //the tile without slice information points to which slice in the store
+            slice = tile.tile_slice;
+            tile.tile_slice = 0;
+            map.put(tile, slice);
           }
         }
       }
@@ -214,31 +234,50 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
 
       @Override
       public void punctuate(long timestamp) {
+        logger.error("Walking over map");
+        KeyValueIterator<TimeQuantisedTile, Integer> k = map.all();
+        while(k.hasNext()) {
+          KeyValue<TimeQuantisedTile, Integer> tile = k.next();
+          TimeQuantisedTile t = tile.key;
+          t.tile_slice = tile.value;
+          logger.error(t.toString());
+        }
+        k.close();
+        
+        logger.error("Walking over store");
+        KeyValueIterator<TimeQuantisedTile, ArrayList<Segment>> j = store.all();
+        while(j.hasNext()) {
+          KeyValue<TimeQuantisedTile, ArrayList<Segment>> tile = j.next();
+          logger.error(tile.key.toString());
+        }
+        j.close();        
+        
         //go through all the tile bucket combos
-        KeyValueIterator<TimeQuantisedTile, Integer> it = map.all();
+        KeyValueIterator<TimeQuantisedTile, ArrayList<Segment>> it = store.all();
         while(it.hasNext()) {
-          //figure out what tile we are on and what the last bucket is
-          KeyValue<TimeQuantisedTile, Integer> tile = it.next();
-          ByteBuffer tile_bucket = tile.key.toByteBuffer(4);
           //collect all the observations across all buckets for this tile
+          TimeQuantisedTile tile = it.next().key;
+          it.close();
           ArrayList<Segment> segments = new ArrayList<Segment>(10);
-          for(int i = 0; i <= tile.value; i++) {
-            tile_bucket.putInt(i);
-            segments.addAll(store.get(tile_bucket));
-            tile_bucket.position(tile_bucket.position() - 8);
+          ArrayList<Segment> slice;
+          for(tile.tile_slice = 0; (slice = store.get(tile)) != null; tile.tile_slice++) {
+            segments.addAll(slice);
+            store.delete(tile);
           }
+          //we purge the entire key value store, otherwise kvstore would have an enourmous long tail
+          tile.tile_slice = 0;
+          map.delete(tile);
           //sort it by the ids
           Collections.sort(segments);
           //delete segment pairs that dont meet the privacy requirement
           clean(segments);
           //store this tile if it has data
           if(!segments.isEmpty())
-            store(tile.key, segments);
+            store(tile, segments);
+          //next tile
+          it = store.all();
         }
         it.close();
-        //we purge the entire key value store, otherwise kvstore would have an enourmous long tail
-        store.flush();
-        map.flush();
       }
 
       @Override

@@ -16,18 +16,20 @@ import org.apache.kafka.common.serialization.Serializer;
 public class TimeQuantisedTile implements Comparable<TimeQuantisedTile>{
   
   public long time_range_start, tile_id;
-  public static final int SIZE = 8 + 8;
+  public int tile_slice;
+  public static final int SIZE = 8 + 8 + 4;
   
-  public TimeQuantisedTile(long start, long id) {
+  public TimeQuantisedTile(long start, long id, int slice) {
     time_range_start = start;  
     tile_id = id;
+    tile_slice = slice;
   }
   
   public static List<TimeQuantisedTile> getTiles(Segment segment, int quantization) {
     List<TimeQuantisedTile> tiles = new ArrayList<TimeQuantisedTile>();
     for(long i = segment.min/quantization; i <= segment.max/quantization; i++) {
       long start = i * quantization;
-      tiles.add(new TimeQuantisedTile(start, segment.getTileId()));
+      tiles.add(new TimeQuantisedTile(start, segment.getTileId(), 0));
     }
     return tiles;
   }
@@ -40,11 +42,8 @@ public class TimeQuantisedTile implements Comparable<TimeQuantisedTile>{
     return tile_id & 0x7;
   }
   
-  public ByteBuffer toByteBuffer(int additional_size) {
-    ByteBuffer buffer = ByteBuffer.allocate(SIZE + additional_size);
-    buffer.putLong(time_range_start);
-    buffer.putLong(tile_id);
-    return buffer;
+  public String toString() {
+    return Long.toString(time_range_start) + "_" + Long.toString(tile_id) + "_" + Integer.toString(tile_slice);
   }
 
   public static class Serder implements Serde<TimeQuantisedTile> {
@@ -59,10 +58,16 @@ public class TimeQuantisedTile implements Comparable<TimeQuantisedTile>{
         public void configure(Map<String, ?> configs, boolean isKey) { }
         @Override
         public byte[] serialize(String topic, TimeQuantisedTile t) {
-          return t.toByteBuffer(0).array();
+          if(t == null)
+            return null;
+          ByteBuffer buffer = ByteBuffer.allocate(SIZE);
+          buffer.putLong(t.time_range_start);
+          buffer.putLong(t.tile_id);
+          buffer.putInt(t.tile_slice);
+          return buffer.array();
         }
         @Override
-        public void close() { }        
+        public void close() { }
       };
     }
 
@@ -72,8 +77,10 @@ public class TimeQuantisedTile implements Comparable<TimeQuantisedTile>{
         public void configure(Map<String, ?> configs, boolean isKey) { }
         @Override
         public TimeQuantisedTile deserialize(String topic, byte[] bytes) {
+          if(bytes == null)
+            return null;
           ByteBuffer buffer = ByteBuffer.wrap(bytes);
-          return new TimeQuantisedTile(buffer.getLong(),  buffer.getLong());
+          return new TimeQuantisedTile(buffer.getLong(), buffer.getLong(), buffer.getInt());
         }
         @Override
         public void close() { }
