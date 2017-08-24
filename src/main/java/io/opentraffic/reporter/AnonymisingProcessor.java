@@ -55,7 +55,7 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
     return Stores.create(ANONYMISER_MAP_STORE_NAME).
         withKeys(new TimeQuantisedTile.Serder()).
         withIntegerValues().
-        persistent().build();
+        inMemory().build();
   }
 
   private final int privacy;      //number of observations required to make it into a tile
@@ -222,9 +222,8 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
         //go through all the tile bucket combos
         KeyValueIterator<TimeQuantisedTile, Integer> it = map.all();
         while(it.hasNext()) {
-          //figure out what range of slices for this tile
+          //get the mapping of tile to slice and move to next one
           KeyValue<TimeQuantisedTile, Integer> tile = it.next();
-          it.close();
           map.delete(tile.key);
           //collect all the observations across all buckets for this tile
           ArrayList<Segment> segments = new ArrayList<Segment>(10);
@@ -241,13 +240,14 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
           }
           //sort it by the ids
           Collections.sort(segments);
+          Integer unclean = segments.size();
           //delete segment pairs that dont meet the privacy requirement
           clean(segments);
+          logger.info("Anonymised quantised tile " + tile.key + " from " + unclean +
+              " initial segments to " + Integer.toString(segments.size()));
           //store this tile if it has data
           if(!segments.isEmpty())
             store(tile.key, segments);
-          //next tile
-          it = map.all();
         }
         it.close();
         
@@ -255,10 +255,8 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
         KeyValueIterator<String, ArrayList<Segment>> l = store.all();
         while(l.hasNext()) {
           String name = l.next().key;
-          l.close();
           logger.warn("Deleting unreferenced quantised tile slice " + name);
           store.delete(name);
-          l = store.all();
         }
         l.close();
       }
