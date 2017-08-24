@@ -26,11 +26,35 @@ import org.apache.log4j.Logger;
 public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> {
   
   private final static Logger logger = Logger.getLogger(AnonymisingProcessor.class);
-  private static final String ANONYMISER_STORE_NAME = "anonymise";
-  public static StateStoreSupplier<?> GetStore() {
-    return Stores.create(ANONYMISER_STORE_NAME).
-        withKeys(new TimeQuantisedTile.Serder()).
+  private static final String ANONYMISER_TILE_STORE_NAME = "anonymise_tile_slices";
+  private static final String ANONYMISER_MAP_STORE_NAME = "anonymise_max_slice";
+  
+  //so originally we stored just a map of the given tile to the list of all the segment pairs in the tile
+  //this was great because it was simple, but the list can get pretty large over long time durations
+  //the problem with a long list is that the size grows to the point that kafka doesnt want to store it
+  //it likes to have "messages" (in this case values) which are less than 1mb in size
+  //you can increase this but you'll have to make a guess as to what the max is supposed to be
+  //its also unclear what raising this max does to other parts of the system, so we needed to work around it
+  //the work around is to, when you run out of space, make a new place to store segments for the same tile
+  //thats what we use the map below to do. we also do some naming tricks to make it easy to put all this
+  //back together before we flush it to the datastore
+  
+  //to really make this work you need to avoid ever letting kafka get to the point where it has a "message"
+  //that is too large. after that point you cannot recover, so what we do is set a limit such that we never
+  //have more than a megabyte of segments in a single slice for a given tile and that seems to make it all work
+  private static final int SLICE_SIZE = 20000;
+  
+  public static StateStoreSupplier<?> GetTileStore() {
+    return Stores.create(ANONYMISER_TILE_STORE_NAME).
+        withStringKeys().
         withValues(new Segment.ListSerder()).
+        inMemory().build();
+  }
+  
+  public static StateStoreSupplier<?> GetMapStore() {
+    return Stores.create(ANONYMISER_MAP_STORE_NAME).
+        withKeys(new TimeQuantisedTile.Serder()).
+        withIntegerValues().
         inMemory().build();
   }
 
@@ -78,13 +102,15 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
   public Processor<String, Segment> get() {
     return new Processor<String, Segment>() {
       private ProcessorContext context;
-      private KeyValueStore<TimeQuantisedTile, ArrayList<Segment>> store;
+      private KeyValueStore<String, ArrayList<Segment>> store;
+      private KeyValueStore<TimeQuantisedTile, Integer> map;
       
       @SuppressWarnings("unchecked")
       @Override
       public void init(ProcessorContext context) {
         this.context = context;
-        this.store = (KeyValueStore<TimeQuantisedTile, ArrayList<Segment>>) context.getStateStore(ANONYMISER_STORE_NAME);
+        this.store = (KeyValueStore<String, ArrayList<Segment>>) context.getStateStore(ANONYMISER_TILE_STORE_NAME);
+        this.map = (KeyValueStore<TimeQuantisedTile, Integer>) context.getStateStore(ANONYMISER_MAP_STORE_NAME);
         this.context.schedule(interval);
       }
 
@@ -93,8 +119,16 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
         //for each time bucket this segment touches
         List<TimeQuantisedTile> tiles = TimeQuantisedTile.getTiles(value, quantisation);
         for(TimeQuantisedTile tile : tiles) {
+          //turn the tile into a string name to get the current place we are dumping segments
+          Integer slice = map.get(tile);
+          if(slice == null) {
+            logger.info("Starting quantised tile slice " + tile + ".0");
+            slice = 0;
+            map.put(tile, slice);
+          }
+          String name = tile.toString() + "." + slice;
           //get this segment from the store
-          ArrayList<Segment> segments = store.get(tile);
+          ArrayList<Segment> segments = store.get(name);
           //if its not there make one
           if(segments == null)
             segments = new ArrayList<Segment>(1);
@@ -102,12 +136,16 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
           segments.add(value);
           //put it back in the store
           try {
-            store.put(tile, segments);
+            store.put(name, segments);
           }//or fail and flush to sync
           catch (Exception e) {
-            logger.warn("Failed to store segments for tile, flushing to sync instead: " + e.getMessage());
-            store.delete(tile);
-            store(tile, segments);
+            logger.error("Couldnt store quantised tile slice " + name + " with " + Integer.toString(segments.size()) + " segments");
+          }          
+          //start a new slice when we reach the limit
+          if(segments.size() == SLICE_SIZE) {
+            name = tile + "." + ++slice;
+            logger.info("Starting quantised tile slice " + name);
+            map.put(tile, slice);
           }
         }
       }
@@ -151,17 +189,20 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
         try {
           //put it to s3
           if(bucket) {
-            logger.info("PUTting tile to " + output + '/' + tile_name + '/' + file_name);
+            logger.info("PUTting tile to " + output + '/' + tile_name + '/' + file_name +
+                " with " + Integer.toString(segments.size()) + " segments");
             StringEntity body = new StringEntity(buffer.toString(), ContentType.create("text/plain", Charset.forName("UTF-8")));
             HttpClient.AwsPUT(output, tile_name + '/' + file_name, body, aws_key, aws_secret);
           }//post it to non s3
           else if(output.startsWith("http://") || output.startsWith("https://")) {
-            logger.info("POSTing tile to " + output + '/' + tile_name + '/' + file_name);
+            logger.info("POSTing tile to " + output + '/' + tile_name + '/' + file_name +
+                " with " + Integer.toString(segments.size()) + " segments");
             StringEntity body = new StringEntity(buffer.toString(), ContentType.create("text/plain", Charset.forName("UTF-8")));
             HttpClient.POST(output + '/' + file_name, body);
           }//write a new file in a dir
           else {
-            logger.info("Writing tile to " + output + '/' + tile_name + '/' + file_name);
+            logger.info("Writing tile to " + output + '/' + tile_name + '/' + file_name +
+                " with " + Integer.toString(segments.size()) + " segments");
             File dir = new File(output + '/' + tile_name);
             dir.mkdirs();
             File tile_file = new File(output + '/' + tile_name + '/' + file_name);
@@ -177,23 +218,47 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
       }
 
       @Override
-      public void punctuate(long timestamp) {
-        //go through all the tiles
-        KeyValueIterator<TimeQuantisedTile, ArrayList<Segment> > it = store.all();
+      public void punctuate(long timestamp) {    
+        //go through all the tile bucket combos
+        KeyValueIterator<TimeQuantisedTile, Integer> it = map.all();
         while(it.hasNext()) {
-          //if we meet the privacy requirement allow this segment into the tile
-          KeyValue<TimeQuantisedTile, ArrayList<Segment>> kv = it.next();
+          //get the mapping of tile to slice and move to next one
+          KeyValue<TimeQuantisedTile, Integer> tile = it.next();
+          map.delete(tile.key);
+          //collect all the observations across all buckets for this tile
+          ArrayList<Segment> segments = new ArrayList<Segment>(10);
+          for(Integer i = 0; i <= tile.value; ++i) {
+            String name = tile.key + "." + i;
+            ArrayList<Segment> slice = store.get(name);
+            if(slice != null) {
+              logger.info("Accumulating quantised tile slice " + name);
+              segments.addAll(slice);
+              store.delete(name);
+            }
+            else
+              logger.warn("Missing quantised tile slice " + name);
+          }
           //sort it by the ids
-          Collections.sort(kv.value);
+          Collections.sort(segments);
+          Integer unclean = segments.size();
           //delete segment pairs that dont meet the privacy requirement
-          clean(kv.value);
+          clean(segments);
+          logger.info("Anonymised quantised tile " + tile.key + " from " + unclean +
+              " initial segments to " + Integer.toString(segments.size()));
           //store this tile if it has data
-          if(!kv.value.isEmpty())
-            store(kv.key, kv.value);
+          if(!segments.isEmpty())
+            store(tile.key, segments);
         }
         it.close();
-        //we purge the entire key value store, otherwise kvstore would have an enourmous long tail
-        store.flush();
+        
+        //remove any unreferenced slices
+        KeyValueIterator<String, ArrayList<Segment>> l = store.all();
+        while(l.hasNext()) {
+          String name = l.next().key;
+          logger.warn("Deleting unreferenced quantised tile slice " + name);
+          store.delete(name);
+        }
+        l.close();
       }
 
       @Override
