@@ -9,8 +9,8 @@ fi
 set -e
 
 function usage {
-  echo -e "Usage:\n-f day file to process\n" 1>&2
-  echo "Example: AWS_DEFAULT_PROFILE=opentraffic $0 -f 2017_01_02.gz -b localhost:9092 -t raw" 1>&2
+  echo -e "Usage:\n-f sorted day file to process\n" 1>&2
+  echo "Example: $0 -f 2017_01_02_12_sorted.gz -b localhost:9092 -t raw" 1>&2
   echo "Note: bucket listing is not recursive" 1>&2
   echo "Note: data is pipe delimited: date|id|x|x|x|x|x|x|x|lat|lon|x|x with date format: %Y-%m-%d %H:%M:%S" 1>&2
   exit 1
