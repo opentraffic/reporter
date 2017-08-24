@@ -16,7 +16,7 @@ import org.apache.kafka.common.serialization.Serializer;
 public class TimeQuantisedTile implements Comparable<TimeQuantisedTile>{
   
   public long time_range_start, tile_id;
-  public static final int SIZE = 8 + 8 + 4;
+  public static final int SIZE = 8 + 8;
   
   public TimeQuantisedTile(long start, long id) {
     time_range_start = start;  
