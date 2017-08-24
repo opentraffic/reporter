@@ -39,9 +39,14 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
   //thats what we use the map below to do. we also do some naming tricks to make it easy to put all this
   //back together before we flush it to the datastore
   
+  //to really make this work you need to avoid ever letting kafka get to the point where it has a "message"
+  //that is too large. after that point you cannot recover, so what we do is set a limit such that we never
+  //have more than a megabyte of segments in a single slice for a given tile and that seems to make it all work
+  private static final int SLICE_SIZE = 20000;
+  
   public static StateStoreSupplier<?> GetTileStore() {
     return Stores.create(ANONYMISER_TILE_STORE_NAME).
-        withKeys(new TimeQuantisedTile.Serder()).
+        withStringKeys().
         withValues(new Segment.ListSerder()).
         inMemory().build();
   }
@@ -97,34 +102,16 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
   public Processor<String, Segment> get() {
     return new Processor<String, Segment>() {
       private ProcessorContext context;
-      private KeyValueStore<TimeQuantisedTile, ArrayList<Segment>> store;
+      private KeyValueStore<String, ArrayList<Segment>> store;
       private KeyValueStore<TimeQuantisedTile, Integer> map;
       
       @SuppressWarnings("unchecked")
       @Override
       public void init(ProcessorContext context) {
         this.context = context;
-        this.store = (KeyValueStore<TimeQuantisedTile, ArrayList<Segment>>) context.getStateStore(ANONYMISER_TILE_STORE_NAME);
+        this.store = (KeyValueStore<String, ArrayList<Segment>>) context.getStateStore(ANONYMISER_TILE_STORE_NAME);
         this.map = (KeyValueStore<TimeQuantisedTile, Integer>) context.getStateStore(ANONYMISER_MAP_STORE_NAME);
         this.context.schedule(interval);
-        
-        logger.error("Walking over map");
-        KeyValueIterator<TimeQuantisedTile, Integer> k = map.all();
-        while(k.hasNext()) {
-          KeyValue<TimeQuantisedTile, Integer> tile = k.next();
-          TimeQuantisedTile t = tile.key;
-          t.tile_slice = tile.value;
-          logger.error(t.toString());
-        }
-        k.close();
-        
-        logger.error("Walking over store");
-        KeyValueIterator<TimeQuantisedTile, ArrayList<Segment>> j = store.all();
-        while(j.hasNext()) {
-          KeyValue<TimeQuantisedTile, ArrayList<Segment>> tile = j.next();
-          logger.error(tile.key.toString());
-        }
-        j.close(); 
       }
 
       @Override
@@ -135,10 +122,13 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
           //turn the tile into a string name to get the current place we are dumping segments
           Integer slice = map.get(tile);
           if(slice == null) {
-            logger.info("Starting quantised tile bucket " + tile.toString());
+            logger.info("Starting quantised tile slice " + tile + ".0");
+            slice = 0;
+            map.put(tile, slice);
           }
+          String name = tile.toString() + "." + slice;
           //get this segment from the store
-          ArrayList<Segment> segments = store.get(tile);
+          ArrayList<Segment> segments = store.get(name);
           //if its not there make one
           if(segments == null)
             segments = new ArrayList<Segment>(1);
@@ -146,23 +136,15 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
           segments.add(value);
           //put it back in the store
           try {
-            if(segments.size() > 20000)
-              throw new Exception("limiting the size");
-            store.put(tile, segments);
-            map.put(tile, tile.tile_slice);
+            store.put(name, segments);
           }//or fail and flush to sync
           catch (Exception e) {
-            logger.error("Couldnt store " + Integer.toString(segments.size()) + " segments");
-            //new list of segments starting with the one that didnt fit
-            segments = new ArrayList<Segment>(1);
-            segments.add(value);
-            //update the stores with this info
-            tile.tile_slice++;
-            logger.info("Starting quantised tile bucket for " + tile.toString());
-            store.put(tile, segments);
-            //the tile without slice information points to which slice in the store
-            slice = tile.tile_slice;
-            tile.tile_slice = 0;
+            logger.error("Couldnt store quantised tile slice " + name + " with " + Integer.toString(segments.size()) + " segments");
+          }          
+          //start a new slice when we reach the limit
+          if(segments.size() == SLICE_SIZE) {
+            name = tile + "." + ++slice;
+            logger.info("Starting quantised tile slice " + name);
             map.put(tile, slice);
           }
         }
@@ -233,51 +215,49 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
       }
 
       @Override
-      public void punctuate(long timestamp) {
-        logger.error("Walking over map");
-        KeyValueIterator<TimeQuantisedTile, Integer> k = map.all();
-        while(k.hasNext()) {
-          KeyValue<TimeQuantisedTile, Integer> tile = k.next();
-          TimeQuantisedTile t = tile.key;
-          t.tile_slice = tile.value;
-          logger.error(t.toString());
-        }
-        k.close();
-        
-        logger.error("Walking over store");
-        KeyValueIterator<TimeQuantisedTile, ArrayList<Segment>> j = store.all();
-        while(j.hasNext()) {
-          KeyValue<TimeQuantisedTile, ArrayList<Segment>> tile = j.next();
-          logger.error(tile.key.toString());
-        }
-        j.close();        
-        
+      public void punctuate(long timestamp) {    
         //go through all the tile bucket combos
-        KeyValueIterator<TimeQuantisedTile, ArrayList<Segment>> it = store.all();
+        KeyValueIterator<TimeQuantisedTile, Integer> it = map.all();
         while(it.hasNext()) {
-          //collect all the observations across all buckets for this tile
-          TimeQuantisedTile tile = it.next().key;
+          //figure out what range of slices for this tile
+          KeyValue<TimeQuantisedTile, Integer> tile = it.next();
           it.close();
+          map.delete(tile.key);
+          //collect all the observations across all buckets for this tile
           ArrayList<Segment> segments = new ArrayList<Segment>(10);
-          ArrayList<Segment> slice;
-          for(tile.tile_slice = 0; (slice = store.get(tile)) != null; tile.tile_slice++) {
-            segments.addAll(slice);
-            store.delete(tile);
+          for(Integer i = 0; i <= tile.value; ++i) {
+            String name = tile.key + "." + i;
+            ArrayList<Segment> slice = store.get(name);
+            if(slice != null) {
+              logger.info("Accumulating quantised tile slice " + name);
+              segments.addAll(slice);
+              store.delete(name);
+            }
+            else
+              logger.warn("Missing quantised tile slice " + name);
           }
-          //we purge the entire key value store, otherwise kvstore would have an enourmous long tail
-          tile.tile_slice = 0;
-          map.delete(tile);
           //sort it by the ids
           Collections.sort(segments);
           //delete segment pairs that dont meet the privacy requirement
           clean(segments);
           //store this tile if it has data
           if(!segments.isEmpty())
-            store(tile, segments);
+            store(tile.key, segments);
           //next tile
-          it = store.all();
+          it = map.all();
         }
         it.close();
+        
+        //remove any unreferenced slices
+        KeyValueIterator<String, ArrayList<Segment>> l = store.all();
+        while(l.hasNext()) {
+          String name = l.next().key;
+          l.close();
+          logger.warn("Deleting unreferenced quantised tile slice " + name);
+          store.delete(name);
+          l = store.all();
+        }
+        l.close();
       }
 
       @Override

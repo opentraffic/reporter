@@ -16,20 +16,18 @@ import org.apache.kafka.common.serialization.Serializer;
 public class TimeQuantisedTile implements Comparable<TimeQuantisedTile>{
   
   public long time_range_start, tile_id;
-  public int tile_slice;
   public static final int SIZE = 8 + 8 + 4;
   
-  public TimeQuantisedTile(long start, long id, int slice) {
+  public TimeQuantisedTile(long start, long id) {
     time_range_start = start;  
     tile_id = id;
-    tile_slice = slice;
   }
   
   public static List<TimeQuantisedTile> getTiles(Segment segment, int quantization) {
     List<TimeQuantisedTile> tiles = new ArrayList<TimeQuantisedTile>();
     for(long i = segment.min/quantization; i <= segment.max/quantization; i++) {
       long start = i * quantization;
-      tiles.add(new TimeQuantisedTile(start, segment.getTileId(), 0));
+      tiles.add(new TimeQuantisedTile(start, segment.getTileId()));
     }
     return tiles;
   }
@@ -43,7 +41,7 @@ public class TimeQuantisedTile implements Comparable<TimeQuantisedTile>{
   }
   
   public String toString() {
-    return Long.toString(time_range_start) + "_" + Long.toString(tile_id) + "_" + Integer.toString(tile_slice);
+    return Long.toString(time_range_start) + "_" + Long.toString(tile_id);
   }
 
   public static class Serder implements Serde<TimeQuantisedTile> {
@@ -63,7 +61,6 @@ public class TimeQuantisedTile implements Comparable<TimeQuantisedTile>{
           ByteBuffer buffer = ByteBuffer.allocate(SIZE);
           buffer.putLong(t.time_range_start);
           buffer.putLong(t.tile_id);
-          buffer.putInt(t.tile_slice);
           return buffer.array();
         }
         @Override
@@ -80,7 +77,7 @@ public class TimeQuantisedTile implements Comparable<TimeQuantisedTile>{
           if(bytes == null)
             return null;
           ByteBuffer buffer = ByteBuffer.wrap(bytes);
-          return new TimeQuantisedTile(buffer.getLong(), buffer.getLong(), buffer.getInt());
+          return new TimeQuantisedTile(buffer.getLong(), buffer.getLong());
         }
         @Override
         public void close() { }
