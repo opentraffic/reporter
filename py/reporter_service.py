@@ -118,12 +118,12 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     #Walk from the last segment until a segment is found where the difference between
     #the end time and the segment begin time exceeds the threshold
     last_idx = len(segments['segments'])-1
-    while (last_idx >= 0 and end_time - segments['segments'][last_idx]['start_time'] < thread_local.threshold_sec):
+    while last_idx >= 0 and end_time - segments['segments'][last_idx]['start_time'] < thread_local.threshold_sec:
       last_idx -= 1
 
     #Trim shape to the beginning of the last segment
     shape_used = None
-    if (last_idx >= 0):
+    if last_idx >= 0:
       shape_used = segments['segments'][last_idx]['begin_shape_index']
 
     #Compute values to send to the datastore: start time for a segment
@@ -135,7 +135,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     datastore_out = {}
     datastore_out['mode'] = 'auto'
     datastore_out['reports'] = []
-    while (idx <= last_idx):
+    while idx <= last_idx:
       seg = segments['segments'][idx]
       segment_id = seg.get('segment_id')
       way_ids = seg.get('way_ids')
@@ -160,15 +160,19 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
           report = {'id': prior_segment_id, 't0' : prior_start_time, 't1' : (start_time if level in thread_local.transition_levels else prior_end_time), 'length' : prior_length, 'queue_length' : prior_queue_length }
           if level in thread_local.transition_levels and segment_id is not None:
             report['next_id'] = segment_id
-          #Validate - ensure speed is not too high
-          speed = (prior_length / (report['t1'] - report['t0'])) * 3.6
-          if (speed < 200):
+
+          #Validate start and end times and ensure speed is not too high
+          if report['t1'] - report['t0'] <= 0:
+            sys.stderr.write("Time is <= 0 - do not report\n")
+            #sys.stderr.write(json.dumps(trace))
+          elif (prior_length / (report['t1'] - report['t0'])) * 3.6 < 200:
             datastore_out['reports'].append(report)
             successful_count += 1
             successful_length = round((prior_length * 0.001),3) #convert meters to km
           else:
-            #Log this as an error
+            #Excessive speed - log this as an error
             sys.stderr.write("Speed exceeds 200kph\n")
+            #sys.stderr.write(json.dumps(trace))
             invalid_speed_count += 1
         #Log prior segments on local level not being reported; lets do a count and track prior_segment_ids
         else:
