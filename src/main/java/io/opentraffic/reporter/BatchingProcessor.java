@@ -81,12 +81,11 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
       @Override
       public void punctuate(long timestamp) {
         //find which ones need to go
-        HashSet<String> to_delete = new HashSet<String>();
         KeyValueIterator<String, Batch> it = store.all();
         while(it.hasNext()) {
           KeyValue<String, Batch> kv = it.next();
           //off to the glue factory with you
-          if(kv != null && (kv.value == null || timestamp - kv.value.last_update > SESSION_GAP)) {
+          if(kv.value == null || timestamp - kv.value.last_update > SESSION_GAP) {
             logger.debug("Evicting " + kv.key + " as it was stale");
             store.delete(kv.key);
             //report what we can
