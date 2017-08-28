@@ -172,7 +172,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
           else:
             #Excessive speed - log this as an error
             sys.stderr.write("Speed exceeds 200kph\n")
-            sys.stderr.write(json.dumps(trace) + '\n')
+            #sys.stderr.write(json.dumps(trace) + '\n')
             sys.stderr.flush()
             invalid_speed_count += 1
         #Log prior segments on local level not being reported; lets do a count and track prior_segment_ids
