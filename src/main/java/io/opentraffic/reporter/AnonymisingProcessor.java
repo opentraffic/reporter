@@ -263,7 +263,6 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
 
       @Override
       public void close() {
-        punctuate(0);
       }
       
     };

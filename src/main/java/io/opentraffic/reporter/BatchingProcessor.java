@@ -140,8 +140,6 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
   
       @Override
       public void close() {
-        //take care of the rest of the stuff thats hanging around
-        punctuate(Long.MAX_VALUE);
       }
     };
   }
