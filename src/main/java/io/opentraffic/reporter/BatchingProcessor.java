@@ -85,13 +85,15 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         while(it.hasNext()) {
           KeyValue<String, Batch> kv = it.next();
           //off to the glue factory with you
-          if(kv.value == null || timestamp - kv.value.last_update > SESSION_GAP) {
+          if(timestamp - kv.value.last_update > SESSION_GAP) {
             logger.debug("Evicting " + kv.key + " as it was stale");
             store.delete(kv.key);
-            //report what we can
-            int reported = forward(kv.value.report(kv.key, url, 0, 2, 0));
-            if(reported > 0)
-              logger.debug("Reported on " + reported + " segment pairs during eviction");
+            //report what we can if we can
+            if(kv.value != null) {
+              int reported = forward(kv.value.report(kv.key, url, 0, 2, 0));
+              if(reported > 0)
+                logger.debug("Reported on " + reported + " segment pairs during eviction");
+            }
           }
         }
         it.close();
