@@ -104,7 +104,7 @@ if [[ ${tile_count} != $(find ${PWD}/results -type f | wc -l) ]]; then
   echo "Wrong number of tiles written"
   exit 1
 fi
-for tile in $(docker logs ${reporter} 2>&1 | grep -F "Writing tile to" | sed -e "s/.*tile to //g"); do
+for tile in $(docker logs ${reporter} 2>&1 | grep -F "Writing tile to" | sed -e "s/.*tile to //g" -e "s/ .*//g"); do
   if [[ ! -e "${PWD}/${tile}" ]]; then
     echo "Couldn't find ${PWD}/${tile}"
     exit 1

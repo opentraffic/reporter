@@ -39,6 +39,10 @@ public class TimeQuantisedTile implements Comparable<TimeQuantisedTile>{
   public long getTileLevel() {
     return tile_id & 0x7;
   }
+  
+  public String toString() {
+    return Long.toString(time_range_start) + "_" + Long.toString(tile_id);
+  }
 
   public static class Serder implements Serde<TimeQuantisedTile> {
     @Override
@@ -52,13 +56,15 @@ public class TimeQuantisedTile implements Comparable<TimeQuantisedTile>{
         public void configure(Map<String, ?> configs, boolean isKey) { }
         @Override
         public byte[] serialize(String topic, TimeQuantisedTile t) {
+          if(t == null)
+            return null;
           ByteBuffer buffer = ByteBuffer.allocate(SIZE);
           buffer.putLong(t.time_range_start);
           buffer.putLong(t.tile_id);
           return buffer.array();
         }
         @Override
-        public void close() { }        
+        public void close() { }
       };
     }
 
@@ -68,8 +74,10 @@ public class TimeQuantisedTile implements Comparable<TimeQuantisedTile>{
         public void configure(Map<String, ?> configs, boolean isKey) { }
         @Override
         public TimeQuantisedTile deserialize(String topic, byte[] bytes) {
+          if(bytes == null)
+            return null;
           ByteBuffer buffer = ByteBuffer.wrap(bytes);
-          return new TimeQuantisedTile(buffer.getLong(),  buffer.getLong());
+          return new TimeQuantisedTile(buffer.getLong(), buffer.getLong());
         }
         @Override
         public void close() { }

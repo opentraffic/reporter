@@ -10,6 +10,7 @@ import org.apache.log4j.Logger;
 public class KeyedFormattingProcessor implements ProcessorSupplier<String, String> {
   private final static Logger logger = Logger.getLogger(KeyedFormattingProcessor.class);
   private Formatter formatter;
+  private long formatted;
   public KeyedFormattingProcessor(CommandLine cmd) {
     logger.debug("Instantiating keyed formatting processor");
     String format = cmd.getOptionValue("formatter");
@@ -24,6 +25,7 @@ public class KeyedFormattingProcessor implements ProcessorSupplier<String, Strin
       @Override
       public void init(ProcessorContext context) {
         this.context = context;
+        formatted = 0;
       }
 
       @Override
@@ -31,6 +33,9 @@ public class KeyedFormattingProcessor implements ProcessorSupplier<String, Strin
         try {
           Pair<String, Point> kv = formatter.format(value);
           context.forward(kv.first, kv.second);
+          formatted++;
+          if(formatted % 10000 == 0)
+            logger.info("Keyed and formatted " + formatted + " messages");
         } catch (Exception e) {
           logger.error("Could not key and format using, key = " + key + ", value = " + value);
         }
