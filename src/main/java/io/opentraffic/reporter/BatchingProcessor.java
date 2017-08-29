@@ -81,26 +81,20 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
       @Override
       public void punctuate(long timestamp) {
         //find which ones need to go
-        HashSet<String> to_delete = new HashSet<String>();
         KeyValueIterator<String, Batch> it = store.all();
         while(it.hasNext()) {
           KeyValue<String, Batch> kv = it.next();
-          if(kv != null && (kv.value == null || timestamp - kv.value.last_update > SESSION_GAP))
-            to_delete.add(kv.key);
-        }
-        it.close();
-        
-        //off to the glue factory with you guys
-        for(String key : to_delete) {
-          //TODO: dont actually report here, instead insert into a queue that a thread can drain asynchronously
-          logger.debug("Evicting " + key + " as it was stale");
-          Batch batch = store.delete(key);
-          if(batch != null) {
-            int reported = forward(batch.report(key, url, 0, 2, 0));
+          //off to the glue factory with you
+          if(kv.value == null || timestamp - kv.value.last_update > SESSION_GAP) {
+            logger.debug("Evicting " + kv.key + " as it was stale");
+            store.delete(kv.key);
+            //report what we can
+            int reported = forward(kv.value.report(kv.key, url, 0, 2, 0));
             if(reported > 0)
               logger.debug("Reported on " + reported + " segment pairs during eviction");
           }
         }
+        it.close();
       }
       
       private int forward(JsonNode result) {
@@ -140,8 +134,6 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
   
       @Override
       public void close() {
-        //take care of the rest of the stuff thats hanging around
-        punctuate(Long.MAX_VALUE);
       }
     };
   }
