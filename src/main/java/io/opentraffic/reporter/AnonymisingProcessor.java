@@ -225,6 +225,8 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
           //get the mapping of tile to slice and move to next one
           KeyValue<TimeQuantisedTile, Integer> tile = it.next();
           map.delete(tile.key);
+          if(tile.key == null || tile.value == null)
+            continue;
           //collect all the observations across all buckets for this tile
           ArrayList<Segment> segments = new ArrayList<Segment>(10);
           for(Integer i = 0; i <= tile.value; ++i) {
