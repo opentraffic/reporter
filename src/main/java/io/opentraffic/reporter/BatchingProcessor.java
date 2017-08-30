@@ -85,7 +85,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         while(it.hasNext()) {
           KeyValue<String, Batch> kv = it.next();
           //nothing to do with this one
-          if(kv.key == null || kv.value == null) {
+          if(kv.value == null) {
             store.delete(kv.key);
           }//off to the glue factory with you
           else if(timestamp - kv.value.last_update > SESSION_GAP) {
