@@ -84,16 +84,17 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         KeyValueIterator<String, Batch> it = store.all();
         while(it.hasNext()) {
           KeyValue<String, Batch> kv = it.next();
-          //off to the glue factory with you
-          if(timestamp - kv.value.last_update > SESSION_GAP) {
+          //nothing to do with this one
+          if(kv.value == null) {
+            store.delete(kv.key);
+          }//off to the glue factory with you
+          else if(timestamp - kv.value.last_update > SESSION_GAP) {
             logger.debug("Evicting " + kv.key + " as it was stale");
             store.delete(kv.key);
             //report what we can if we can
-            if(kv.value != null) {
-              int reported = forward(kv.value.report(kv.key, url, 0, 2, 0));
-              if(reported > 0)
-                logger.debug("Reported on " + reported + " segment pairs during eviction");
-            }
+            int reported = forward(kv.value.report(kv.key, url, 0, 2, 0));
+            if(reported > 0)
+              logger.debug("Reported on " + reported + " segment pairs during eviction");
           }
         }
         it.close();
