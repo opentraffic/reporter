@@ -15,6 +15,7 @@ args = parser.parse_args()
 args.file = args.file[0]
 
 #Manila Extract BBox
+
 bb_ymin = 14.501
 bb_xmin = 120.9
 bb_ymax = 14.70
@@ -48,5 +49,5 @@ print(str(len(out_file)))
 if args.file != '-':
   handle.close()
   
-with open('2017-01-02', "ab") as f:
+with open('2017-01-01', "ab") as f:
   f.write(str(out_file))   

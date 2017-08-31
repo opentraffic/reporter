@@ -32,15 +32,15 @@ echo "Retrieving file list from s3"
 files=$(aws s3 ls ${s3_dir} | awk '{print $4}' | grep -E ${file_re} | tr '\n' ' ')
 echo "Processing $(echo ${files} | tr ' ' '\n' | wc -l) files"
 echo $files
-rm -f 2017_02
-touch 2017_02
+#rm -f 2017__01_01
+#touch 2017_01_01
 for file in ${files}; do
   #download in the foreground
   echo "Retrieving ${file} from s3" && aws s3 cp ${s3_dir}${file} . &> /dev/null
-  zcat ${file} | sort | awk -F"|" '( $10 >= 14.501 ) && ( $10 <= 14.70 ) && ( $11 >= 120.9 ) && ( $11 <= 121.13 ) { print $0 }' >> 2017-01-02
-  #zcat ${file} | sort | ./cat_to_file.py --key-with 'lambda line: line.split("|")[1]' -
+  #zcat ${file} | sort | awk -F"|" '( $10 >= 14.501 ) && ( $10 <= 14.70 ) && ( $11 >= 120.9 ) && ( $11 <= 121.13 ) { print $0 }' >> 2017-01-01
+  zcat ${file} | sort | ./cat_to_file.py --key-with 'lambda line: line.split("|")[1]' -
   echo "Finished POST'ing ${file}" && rm -f ${file}
 done
 
-sort 2017-01-02 >> 2017-01-02_sorted
+sort 2017-01-01 >> 2017-01-01_sorted
 echo "Finished sorting!"
