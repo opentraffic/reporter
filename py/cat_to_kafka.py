@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import sys
+import traceback
 import os
 import argparse
 import logging
@@ -38,13 +39,15 @@ handle = open(args.file, 'r') if args.file != '-' else sys.stdin
 for line in handle:
   #try to work on the line as normal
   try:
-   l = line.rstrip()
-   key = bytes(key_with(l)) if key_with else None
-   value = bytes(value_with(l) if value_with else l)
-   producer.send(args.topic, key = key, value = value)
+    l = line.rstrip()
+    key = bytes(key_with(l)) if key_with else None
+    value = bytes(value_with(l) if value_with else l)
+    producer.send(args.topic, key = key, value = value)
   except Exception as e:
-    sys.stderr.write(repr(e))
-    sys.stderr.write(os.linesep)
+    sys.stderr.write('With arguments: ' + args + os.linesep)
+    sys.stderr.write('With line: ' + l + os.linesep)
+    traceback.print_exc(file=sys.stderr)
+
 #done
 if args.file != '-':
   producer.close()
