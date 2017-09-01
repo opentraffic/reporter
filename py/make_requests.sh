@@ -36,7 +36,7 @@ done
 
 hash=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)
 key_with='lambda line: line.split("|")[1]'
-value_with="lambda line: re.sub(r'(.*:[0-5][0-9]\\|)([0-9]+)(\\|.*)', r'\\1\\2${hash}\\3', line)"
+value_with="lambda line: re.sub(r'^([^\\|]+)\\|', r'\\1|${hash}', line)"
 
 if [[ -z ${s3_dir} ]] || [[ -z ${file_re} ]] || [[ -z ${bootstrap} ]] || [[ -z ${topic} ]]; then
   echo "Missing required option" 1>&2 && usage
