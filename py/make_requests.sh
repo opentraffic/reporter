@@ -61,7 +61,6 @@ for file in ${files}; do
   echo "Retrieving ${file} from s3" && aws s3 cp ${s3_dir}${file} . &> /dev/null
   #send to kafka producer
   if [ ${send_if+x} ]; then
-    echo "zcat ${file} | ./cat_to_kafka.py --bootstrap ${bootstrap} --topic ${topic} --key-with \"${key_with}\" --value-with \"${value_with}\" --send-if \"${send_if}\" -"
     zcat ${file} | ./cat_to_kafka.py --bootstrap ${bootstrap} --topic ${topic} --key-with "${key_with}" --value-with "${value_with}" --send-if "${send_if}" -
   else
     zcat ${file} | ./cat_to_kafka.py --bootstrap ${bootstrap} --topic ${topic} --key-with "${key_with}" --value-with "${value_with}" -
