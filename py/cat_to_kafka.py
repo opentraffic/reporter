@@ -27,8 +27,8 @@ parser = argparse.ArgumentParser(description='Generate reporter post body', form
 parser.add_argument('file', metavar='F', type=str, nargs=1, help='A file name to be read from, use - for stdin')
 parser.add_argument('--bootstrap', type=str, help='A list of ip(s) and port(s) for your kafka bootstrap servers', required=True)
 parser.add_argument('--topic', type=str, help='Create a topic for which the messages should be associated', required=True)
-parser.add_argument('--key-with', type=str, help='A lambda of the form "lambda line: line.do_something()" such that the program can extract a key from a given line of input', required=True)
-parser.add_argument('--value-with', type=str, help='A lambda of the form "lambda line: line.do_something()" such that the program can modify the value in some way before producing', required=True)
+parser.add_argument('--key-with', type=str, help='A lambda of the form "lambda line: line.do_something()" such that the program can extract a key from a given line of input', required=False)
+parser.add_argument('--value-with', type=str, help='A lambda of the form "lambda line: line.do_something()" such that the program can modify the value in some way before producing', required=False)
 parser.add_argument('--send-if', type=str, help='A lambda of the from "lambda line: line.do_something()" such that the program can know if it should send the line or not', required=False)
 
 args = parser.parse_args()
