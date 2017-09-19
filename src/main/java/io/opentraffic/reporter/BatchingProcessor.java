@@ -1,7 +1,5 @@
 package io.opentraffic.reporter;
 
-import java.util.HashSet;
-
 import org.apache.commons.cli.CommandLine;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.processor.Processor;
