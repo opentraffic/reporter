@@ -14,6 +14,7 @@ import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.client.HttpRequestRetryHandler;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
@@ -21,6 +22,8 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
@@ -81,7 +84,9 @@ public final class HttpClient {
       builder.setSocketTimeout(10000);
       request.setConfig(builder.build());
       //make the request
-      CloseableHttpClient client = HttpClients.createDefault();
+      HttpClientBuilder clientBuilder = HttpClients.custom();
+      clientBuilder.setRetryHandler(new DefaultHttpRequestRetryHandler(3, false));
+      CloseableHttpClient client = clientBuilder.build();
       response = client.execute(request);
       HttpEntity response_entity = response.getEntity();
       InputStream stream = response_entity.getContent();
@@ -90,7 +95,7 @@ public final class HttpClient {
       EntityUtils.consume(response_entity);
     }//swallow anything
     catch(Exception e) {
-      logger.error("Couldn't " + request.getMethod() + " to " + request.getURI() + " -> " + e.getMessage());
+      logger.error("After 3 attempts couldn't " + request.getMethod() + " to " + request.getURI() + " -> " + e.getMessage());
     }//always close
     finally { 
       try { response.close(); } catch(Exception e){ }
