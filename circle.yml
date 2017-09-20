@@ -23,7 +23,7 @@ deployment:
     branch: master
     commands:
       - ecs-deploy/bin/deploy.sh --env prod --region us-east-1 --project reporter
-      - ecs-deploy/bin/deploy.sh --env prod --region us-east-1 --project reporter-kafka --cluster reporter-prod --no-push-image
+      - ecs-deploy/bin/deploy.sh --env prod --region us-east-1 --project reporter-kafka --no-push-image
       - hub-deploy/bin/deploy.sh reporter
 
   dev:
