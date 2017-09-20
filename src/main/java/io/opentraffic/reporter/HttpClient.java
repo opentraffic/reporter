@@ -94,7 +94,7 @@ public final class HttpClient {
       EntityUtils.consume(response_entity);
     }//swallow anything
     catch(Exception e) {
-      logger.error("After 3 attempts couldn't " + request.getMethod() + " to " + request.getURI() + " -> " + e.getMessage());
+      logger.error("After 3 attempts couldn't " + request.getMethod() + " to " + request.getURI() + " -> " + e);
     }//always close
     finally { 
       try { response.close(); } catch(Exception e){ }
