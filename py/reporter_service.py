@@ -165,7 +165,7 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
           if report['t1'] - report['t0'] <= 0:
             sys.stderr.write("Time is <= 0 - do not report\n")
             #sys.stderr.write(json.dumps(trace))
-          elif (prior_length / (report['t1'] - report['t0'])) * 3.6 < 200:
+          elif (prior_length / (report['t1'] - report['t0'])) * 3.6 < 160:
             datastore_out['reports'].append(report)
             successful_count += 1
             successful_length = round((prior_length * 0.001),3) #convert meters to km
