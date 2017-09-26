@@ -197,8 +197,9 @@ def match(file_name, time_pattern, quantisation, source, dest_dir):
     return
   
   #weed out the usable segments and then send them off to the time tiles
-  segments = [ r for r in report['datastore']['reports'] if r['t0'] > 0 and r['t1'] > 0 and r['t1'] > r['t0'] and r['length'] > 0 and r['queue_length'] >= 0 ]
+  segments = [ r for r in report['datastore']['reports'] if r['t0'] > 0 and r['t1'] > 0 and r['t1'] - r['t0'] > .5 and r['length'] > 0 and r['queue_length'] >= 0 ]
   for r in segments:
+    duration = int(round(r['t1'] - r['t0']))
     start = int(math.floor(r['t0']))
     end = int(math.ceil(r['t1']))
     min_bucket = int(start / quantisation)
@@ -214,7 +215,7 @@ def match(file_name, time_pattern, quantisation, source, dest_dir):
         s = [
           str(r['id']),
           str(r.get('next_id', INVALID_SEGMENT_ID)),
-          str(int(round(r['t1'] - r['t0']))),
+          str(duration),
           '1',
           str(r['length']),
           str(r['queue_length']),
