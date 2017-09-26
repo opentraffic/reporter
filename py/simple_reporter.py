@@ -145,8 +145,8 @@ def get_traces(bucket, prefix, regex, keyer, valuer, bbox, threads):
   filtered = filter(regex.match, keys)
   
   #download and parse them into proper files
-  logger.info('Gathering trace data from source files')
   dest_dir = tempfile.mkdtemp(dir='')
+  logger.info('Gathering trace data from source files into %s' % dest_dir)
   pool = ThreadPool(threads, local_session)
   total = 0.0
   for key in filtered:
@@ -232,10 +232,10 @@ def local_matcher():
 
 def make_matches(trace_dir, config, time_pattern, quantisation, source, threads):
   #download and parse them into proper files
-  logger.info('Matching trace data to osmlr segments')
+  dest_dir = tempfile.mkdtemp(dir='')
+  logger.info('Matching trace data to osmlr segments into %s' % dest_dir)
   valhalla.Configure(config)
   pool = ThreadPool(threads, local_matcher)
-  dest_dir = tempfile.mkdtemp(dir='')
   total = 0.0
   for root, dirs, files in os.walk(trace_dir):
     for file_name in files:
