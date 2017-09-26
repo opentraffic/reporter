@@ -25,7 +25,9 @@ public class TimeQuantisedTile implements Comparable<TimeQuantisedTile>{
   
   public static List<TimeQuantisedTile> getTiles(Segment segment, int quantization) {
     List<TimeQuantisedTile> tiles = new ArrayList<TimeQuantisedTile>();
-    for(long i = segment.min/quantization; i <= segment.max/quantization; i++) {
+    long min = new Double(segment.min).longValue();
+    long max = new Double(segment.max).longValue();
+    for(long i = min/quantization; i <= max/quantization; i++) {
       long start = i * quantization;
       tiles.add(new TimeQuantisedTile(start, segment.getTileId()));
     }
