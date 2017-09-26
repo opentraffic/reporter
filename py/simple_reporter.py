@@ -199,8 +199,8 @@ def match(file_name, time_pattern, quantisation, source, dest_dir):
   #weed out the usable segments and then send them off to the time tiles
   segments = [ r for r in report['datastore']['reports'] if r['t0'] > 0 and r['t1'] > 0 and r['t1'] > r['t0'] and r['length'] > 0 and r['queue_length'] >= 0 ]
   for r in segments:
-    start = math.floor(r['t0'])
-    end = math.ceil(r['t1'])
+    start = int(math.floor(r['t0']))
+    end = int(math.ceil(r['t1']))
     min_bucket = int(start / quantisation)
     max_bucket = int(end / quantisation)
     for b in range(min_bucket, max_bucket + 1):
@@ -221,7 +221,7 @@ def match(file_name, time_pattern, quantisation, source, dest_dir):
           str(start),
           str(end),
           source,
-          'auto'
+          'AUTO'
         ]
         f.write(','.join(s) + os.linesep)
 
