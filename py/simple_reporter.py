@@ -6,9 +6,11 @@ import urllib
 import functools
 import os
 import re
+import traceback
 import logging
 import gzip
 import cStringIO
+import contextlib
 import Queue
 import multiprocessing
 import threading
@@ -21,12 +23,18 @@ import json
 import valhalla
 import reporter_service
 
+#time's import of strptime is not thread safe so we have to import it ahead
+#of time or use it in the main thread: https://bugs.python.org/issue7980
+from _strptime import _strptime_time
+time.strptime(time.strftime('%Y'), '%Y')
+
 thread_local = threading.local()
 
-logger = logging.getLogger('convert')
+logger = logging.getLogger('simple_reporter')
 logger.setLevel(logging.INFO)
 handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter(fmt='%(asctime)s %(levelname)s %(message)s'))
+formatter = logging.Formatter(fmt='%(asctime)s %(levelname)s %(message)s')
+handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 valhalla_tiles = [{'level': 2, 'size': 0.25}, {'level': 1, 'size': 1.0}, {'level': 0, 'size': 4.0}]
@@ -60,7 +68,7 @@ class Worker(threading.Thread):
         result = func(*args, **kargs)
         if result is not None:
           self.results.put(result)
-      except Exception as e: logger.error(e)
+      except Exception as e: logger.error(traceback.format_exc())
       finally: self.tasks.task_done()
 
 class ThreadPool:
@@ -95,14 +103,20 @@ def get_prefixes_keys(client, bucket, prefixes):
       first = False
   return pres, keys
 
-def download(bucket, key, keyer, valuer, dest_dir):
+def download(bucket, key, keyer, valuer, bbox, dest_dir):
   #go get it
   try:
     file_name = hashlib.sha1(key).hexdigest()
     thread_local.client.download_file(bucket, key, file_name)
-    logging.info('Downloaded %s' % key)
+    logger.info('Downloaded %s' % key)
     with gzip.open(file_name, 'rb') as f:
       for message in f:
+        #skip stuff not in bbox
+        value = valuer(message)
+        lat = float(value[1])
+        lon = float(value[2])
+        if lat < bbox[0] or lat > bbox[2] or lon < bbox[1] or lon > bbox[3]:
+          continue
         #hash the id part and get the values out
         key_file = keyer(message)
         key_file = '00' + hashlib.sha1(key_file).hexdigest()
@@ -110,13 +124,12 @@ def download(bucket, key, keyer, valuer, dest_dir):
         for i in range(0, 14):
           chars.insert(i * 3 + i, '/')
         key_file = dest_dir + ''.join(chars)
-        value = valuer(message)
         #append them to a file
         try: os.makedirs(os.sep.join(key_file.split('/')[:-1]))
         except: pass
         with open(key_file, 'a', 1) as kf:
           kf.write(','.join(value) + os.linesep)
-    logging.info('Gathered traces from %s' % key)
+    logger.info('Gathered traces from %s' % key)
     os.remove(file_name)
   except Exception as e:
     logger.error('%s was not processed %s' % (key, e))
@@ -125,21 +138,21 @@ def local_session():
   setattr(thread_local, 'session', boto3.session.Session())
   setattr(thread_local, 'client', thread_local.session.client('s3'))
 
-def get_traces(bucket, prefix, regex, keyer, valuer, threads):
+def get_traces(bucket, prefix, regex, keyer, valuer, bbox, threads):
   logger.info('Getting source data keys from bucket %s using prefix %s' % (bucket, prefix))
   #get the proper keys we care about
   _, keys = get_prefixes_keys(boto3.client('s3'), bucket, [prefix])
   filtered = filter(regex.match, keys)
-  filtered = filtered[:2]
   
   #download and parse them into proper files
-  logger.info('Gathering trace data from %d source files after filtering using %s' % (len(filtered), regex.pattern))
+  logger.info('Gathering trace data from source files')
   dest_dir = tempfile.mkdtemp(dir='')
   pool = ThreadPool(threads, local_session)
   total = 0.0
   for key in filtered:
-    pool.add_task(download, bucket, key, keyer, valuer, dest_dir)
+    pool.add_task(download, bucket, key, keyer, valuer, bbox, dest_dir)
     total += 1
+  logger.info('%d source files have been queued' % total)
 
   #monitor progress
   progress = -1
@@ -154,7 +167,7 @@ def get_traces(bucket, prefix, regex, keyer, valuer, threads):
     logger.info('Gathering traces 100%')
   logger.info('Done gathering traces')
   return dest_dir
-  
+
 def match(file_name, time_pattern, quantisation, source, dest_dir):
   #get out the data into a request payload
   trace = { 'uuid': file_name, 'trace': [] }
@@ -164,6 +177,10 @@ def match(file_name, time_pattern, quantisation, source, dest_dir):
       tm = calendar.timegm(time.strptime(tm, time_pattern))
       trace['trace'].append({'lat': float(lat), 'lon': float(lon), 'time': tm, 'accuracy': int(math.ceil(float(acc)))})
 
+  #skip short traces
+  if len(trace['trace']) < 2:
+    return
+
   #sort the points by time in case threads were competing on the file
   trace['trace'].sort(key=lambda v:v['time'])
   report_levels = set([0, 1])
@@ -171,15 +188,19 @@ def match(file_name, time_pattern, quantisation, source, dest_dir):
   threshold_sec = 15
   
   #get the matches for it
-  match_str = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
-  match = json.loads(match_str)
-  report = reporter_service.report(match, trace, threshold_sec, report_levels, transition_levels)
+  try:
+    match_str = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
+    match = json.loads(match_str)
+    report = reporter_service.report(match, trace, threshold_sec, report_levels, transition_levels)
+  except:
+    logger.error('Failed to report trace %s' % file_name)
+    return
   
   #weed out the usable segments and then send them off to the time tiles
   segments = [ r for r in report['datastore']['reports'] if r['t0'] > 0 and r['t1'] > 0 and r['t1'] > r['t0'] and r['length'] > 0 and r['queue_length'] >= 0 ]
   for r in segments:
     start = math.floor(r['t0'])
-    end = math.ceil(rs['t1'])
+    end = math.ceil(r['t1'])
     min_bucket = int(start / quantisation)
     max_bucket = int(end / quantisation)
     for b in range(min_bucket, max_bucket + 1):
@@ -191,8 +212,8 @@ def match(file_name, time_pattern, quantisation, source, dest_dir):
       except: pass
       with open(file_name, 'a', 1) as f:
         s = [
-          str(s['id']),
-          str(s.get('next_id', INVALID_SEGMENT_ID)),
+          str(r['id']),
+          str(r.get('next_id', INVALID_SEGMENT_ID)),
           str(int(round(r['t1'] - r['t0']))),
           '1',
           str(r['length']),
@@ -203,6 +224,8 @@ def match(file_name, time_pattern, quantisation, source, dest_dir):
           'auto'
         ]
         f.write(','.join(s) + os.linesep)
+
+  #TODO: return the stats part so we can merge them together later on
 
 def local_matcher():
   setattr(thread_local, 'segment_matcher', valhalla.SegmentMatcher())
@@ -218,6 +241,7 @@ def make_matches(trace_dir, config, time_pattern, quantisation, source, threads)
     for file_name in files:
       pool.add_task(match, root + os.sep + file_name, time_pattern, quantisation, source, dest_dir)
       total += 1
+  logger.info('%d traces have been queued' % total)
 
   #monitor progress
   progress = -1
@@ -261,7 +285,7 @@ def report(file_name, bucket, privacy):
     i += 1
 
   #write the lines to a file like object and upload it
-  with cStringIO.StringIO() as f:
+  with contextlib.closing(cStringIO.StringIO()) as f:
     f.write('segment_id,next_segment_id,duration,count,length,queue_length,minimum_timestamp,maximum_timestamp,source,vehicle_type' + os.linesep)
     for s in segments:
       f.write(s)
@@ -279,6 +303,7 @@ def report_tiles(match_dir, bucket, privacy, threads):
     for file_name in files:
       pool.add_task(report, root + os.sep + file_name, bucket, privacy)
       total += 1
+  logger.info('%d tiles have been queued' % total)
 
   #monitor progress
   progress = -1
@@ -292,7 +317,12 @@ def report_tiles(match_dir, bucket, privacy, threads):
   if progress != 100:
     logger.info('Reporting tiles 100%')
   logger.info('Done reporting tiles')
-  return dest_dir
+
+def check_box(bbox):
+  b = [ float(b) for b in bbox.split(',') ]
+  if b[0] < -90 or b[1] < -180 or b[2] > 90 or b[3] > 180 or b[0] >= b[2] or b[1] >= b[3]:
+    raise argeparse.ArgumentTypeError('%s is not a valid bbox' % bbox)
+  return b
 
 if __name__ == '__main__':
   #build args
@@ -309,12 +339,13 @@ if __name__ == '__main__':
   parser.add_argument('--source-id', type=str, help='A simple string to identify where these readings came from', default='smpl_rprt')
   parser.add_argument('--dest-bucket', type=str, help='Bucket where we want to put the reporter output', required=True)
   parser.add_argument('--concurrency', type=int, help='Number of threads to use when doing various stages of processing', default=multiprocessing.cpu_count())
+  parser.add_argument('--bbox', type=check_box, help='Comma separated coordinates within which data will be reported: min_lat,min_lon,max_lat,max_lon', default=[-90.0,-180.0,90.0,180.0])
   args = parser.parse_args()
 
   #fetch the data and divide it up
   exec('keyer = ' + args.src_keyer)
   exec('valuer = ' + args.src_valuer)
-  trace_dir = get_traces(args.src_bucket, args.src_prefix, re.compile(args.src_key_regex), keyer, valuer, args.concurrency)
+  trace_dir = get_traces(args.src_bucket, args.src_prefix, re.compile(args.src_key_regex), keyer, valuer, args.bbox, args.concurrency)
 
   #do matching on every file
   match_dir = make_matches(trace_dir, args.match_config, args.src_time_pattern, args.quantisation, args.source_id, args.concurrency)
