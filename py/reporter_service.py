@@ -100,7 +100,7 @@ def report(segments, trace, threshold_sec, report_levels, transition_levels):
   segments['mode'] = 'auto'
   prior_segment_id = None
   first_seg = True
-  idx, successful_count, unreported_count, successful_length, unreported_length, discontinuities_count, invalid_speed_count, unassociated_seg_count = [0 for _ in range(8)]
+  idx, successful_count, unreported_count, successful_length, unreported_length, discontinuities_count, invalid_time_count, invalid_speed_count, unassociated_seg_count = [0 for _ in range(9)]
   datastore_out = {}
   datastore_out['mode'] = 'auto'
   datastore_out['reports'] = []
@@ -131,19 +131,15 @@ def report(segments, trace, threshold_sec, report_levels, transition_levels):
           report['next_id'] = segment_id
 
         #Validate start and end times and ensure speed is not too high
-        if report['t1'] - report['t0'] <= 0:
-          sys.stderr.write("Time is <= 0 - do not report\n")
-          #sys.stderr.write(json.dumps(trace))
-        elif (prior_length / (report['t1'] - report['t0'])) * 3.6 < 160:
+        dt = float(report['t1']) - float(report['t0'])
+        if dt <= 0 or math.isinf(dt) or math.isnan(dt):
+          invalid_time_count += 1
+        elif (prior_length / dt) * 3.6 > 160:
+          invalid_speed_count += 1
+        else:
           datastore_out['reports'].append(report)
           successful_count += 1
           successful_length = round((prior_length * 0.001),3) #convert meters to km
-        else:
-          #Excessive speed - log this as an error
-          sys.stderr.write("Speed exceeds 200kph\n")
-          #sys.stderr.write(json.dumps(trace) + '\n')
-          sys.stderr.flush()
-          invalid_speed_count += 1
       #Log prior segments on local level not being reported; lets do a count and track prior_segment_ids
       else:
         unreported_count += 1
@@ -181,6 +177,7 @@ def report(segments, trace, threshold_sec, report_levels, transition_levels):
   data['stats']['unreported_matches']['length'] = unreported_length
   data['stats']['match_errors']['discontinuities'] = discontinuities_count
   data['stats']['match_errors']['invalid_speeds'] = invalid_speed_count
+  data['stats']['match_errors']['invalid_times'] = invalid_time_count
   data['stats']['unassociated_segments'] = unassociated_seg_count
 
   return data
