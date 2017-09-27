@@ -79,6 +79,109 @@ class ThreadPoolMixIn(ThreadingMixIn):
 class ThreadedHTTPServer(ThreadPoolMixIn, HTTPServer):
   pass
 
+#report some segments for the datastore
+def report(segments, trace, threshold_sec, report_levels, transition_levels):
+  #Get the end time
+  end_time = trace['trace'][len(trace['trace']) - 1]['time']
+
+  #Walk from the last segment until a segment is found where the difference between
+  #the end time and the segment begin time exceeds the threshold
+  last_idx = len(segments['segments'])-1
+  while last_idx >= 0 and end_time - segments['segments'][last_idx]['start_time'] < threshold_sec:
+    last_idx -= 1
+
+  #Trim shape to the beginning of the last segment
+  shape_used = None
+  if last_idx >= 0:
+    shape_used = segments['segments'][last_idx]['begin_shape_index']
+
+  #Compute values to send to the datastore: start time for a segment
+  #next segment (if any), start time at the next segment (end time of segment if no next segment)
+  segments['mode'] = 'auto'
+  prior_segment_id = None
+  first_seg = True
+  idx, successful_count, unreported_count, successful_length, unreported_length, discontinuities_count, invalid_time_count, invalid_speed_count, unassociated_seg_count = [0 for _ in range(9)]
+  datastore_out = {}
+  datastore_out['mode'] = 'auto'
+  datastore_out['reports'] = []
+  while idx <= last_idx:
+    seg = segments['segments'][idx]
+    segment_id = seg.get('segment_id')
+    way_ids = seg.get('way_ids')
+    start_time = seg.get('start_time')
+    end_time = seg.get('end_time')
+    #internal means the segment is an internal intersection, turn channel, roundabout
+    internal = seg.get('internal', False)
+    queue_length = seg.get('queue_length')
+    #length = -1 means this is a partial OSMLR segment match
+    length = seg.get('length')
+    #report a count of the number of matches that include discontinuities (a partial end time followed by a partial start time that are consecutive) as invalid
+    if idx != 0 and segments['segments'][idx]['start_time'] == -1 and segments['segments'][idx-1]['end_time'] == -1:
+      discontinuities_count += 1
+
+    #check if segment Id is on the local level
+    level = (segment_id & 0x7) if segment_id != None else -1
+
+    #Conditionally output prior segment if it is complete and the level is configured to be reported
+    if prior_segment_id != None and prior_length > 0 and internal != True:
+      if prior_level in report_levels:
+        #Add the prior segment.
+        report = {'id': prior_segment_id, 't0' : prior_start_time, 't1' : (start_time if level in transition_levels else prior_end_time), 'length' : prior_length, 'queue_length' : prior_queue_length }
+        if level in transition_levels and segment_id is not None:
+          report['next_id'] = segment_id
+
+        #Validate start and end times and ensure speed is not too high
+        dt = float(report['t1']) - float(report['t0'])
+        if dt <= 0 or math.isinf(dt) or math.isnan(dt):
+          invalid_time_count += 1
+        elif (prior_length / dt) * 3.6 > 160:
+          invalid_speed_count += 1
+        else:
+          datastore_out['reports'].append(report)
+          successful_count += 1
+          successful_length = round((prior_length * 0.001),3) #convert meters to km
+      #Log prior segments on local level not being reported; lets do a count and track prior_segment_ids
+      else:
+        unreported_count += 1
+        unreported_length = round((prior_length * 0.001),3) #convert meters to km
+
+    #Save state for next segment.
+    if internal == True and first_seg != True:
+      #Do not replace information on prior segment, except to mark the prior as internal
+      prior_internal = internal
+    else:
+      prior_segment_id = segment_id
+      prior_start_time = start_time
+      prior_end_time = end_time
+      prior_internal = internal
+      prior_length = length
+      prior_level = level
+      prior_queue_length = queue_length
+
+    first_seg = False
+    idx += 1
+    #Track segments that match to edges that do not have any OSMLR Id and are non-internal (turn channel, roundabout, internal intersection) -
+    #Likely a service road (driveway, alley, parking aisle, etc.)
+    if segment_id is None and internal == False:
+      unassociated_seg_count += 1
+
+  data = {'stats':{'successful_matches':{}, 'unreported_matches':{}, 'match_errors':{}}}
+  if shape_used:
+    data['shape_used'] = shape_used
+  data['segment_matcher'] = segments
+  data['datastore'] = datastore_out
+
+  data['stats']['successful_matches']['count'] = successful_count
+  data['stats']['successful_matches']['length'] = successful_length
+  data['stats']['unreported_matches']['count'] = unreported_count
+  data['stats']['unreported_matches']['length'] = unreported_length
+  data['stats']['match_errors']['discontinuities'] = discontinuities_count
+  data['stats']['match_errors']['invalid_speeds'] = invalid_speed_count
+  data['stats']['match_errors']['invalid_times'] = invalid_time_count
+  data['stats']['unassociated_segments'] = unassociated_seg_count
+
+  return data
+
 #custom handler for getting routes
 class SegmentMatcherHandler(BaseHTTPRequestHandler):
   #boiler plate parsing
@@ -106,116 +209,6 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     raise Exception('No json provided')
 
 
-  #report some segments to the datastore
-  def report(self, trace):
-    #ask valhalla to give back OSMLR segments along this trace
-    result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
-    segments = json.loads(result)
-
-    #Get the end time
-    end_time = trace['trace'][len(trace['trace']) - 1]['time']
-
-    #Walk from the last segment until a segment is found where the difference between
-    #the end time and the segment begin time exceeds the threshold
-    last_idx = len(segments['segments'])-1
-    while last_idx >= 0 and end_time - segments['segments'][last_idx]['start_time'] < thread_local.threshold_sec:
-      last_idx -= 1
-
-    #Trim shape to the beginning of the last segment
-    shape_used = None
-    if last_idx >= 0:
-      shape_used = segments['segments'][last_idx]['begin_shape_index']
-
-    #Compute values to send to the datastore: start time for a segment
-    #next segment (if any), start time at the next segment (end time of segment if no next segment)
-    segments['mode'] = 'auto'
-    prior_segment_id = None
-    first_seg = True
-    idx, successful_count, unreported_count, successful_length, unreported_length, discontinuities_count, invalid_speed_count, unassociated_seg_count = [0 for _ in range(8)]
-    datastore_out = {}
-    datastore_out['mode'] = 'auto'
-    datastore_out['reports'] = []
-    while idx <= last_idx:
-      seg = segments['segments'][idx]
-      segment_id = seg.get('segment_id')
-      way_ids = seg.get('way_ids')
-      start_time = seg.get('start_time')
-      end_time = seg.get('end_time')
-      #internal means the segment is an internal intersection, turn channel, roundabout
-      internal = seg.get('internal', False)
-      queue_length = seg.get('queue_length')
-      #length = -1 means this is a partial OSMLR segment match
-      length = seg.get('length')
-      #report a count of the number of matches that include discontinuities (a partial end time followed by a partial start time that are consecutive) as invalid
-      if idx != 0 and segments['segments'][idx]['start_time'] == -1 and segments['segments'][idx-1]['end_time'] == -1:
-        discontinuities_count += 1
-
-      #check if segment Id is on the local level
-      level = (segment_id & 0x7) if segment_id != None else -1
-
-      #Conditionally output prior segment if it is complete and the level is configured to be reported
-      if prior_segment_id != None and prior_length > 0 and internal != True:
-        if prior_level in thread_local.report_levels:
-          #Add the prior segment.
-          report = {'id': prior_segment_id, 't0' : prior_start_time, 't1' : (start_time if level in thread_local.transition_levels else prior_end_time), 'length' : prior_length, 'queue_length' : prior_queue_length }
-          if level in thread_local.transition_levels and segment_id is not None:
-            report['next_id'] = segment_id
-
-          #Validate start and end times and ensure speed is not too high
-          if report['t1'] - report['t0'] <= 0:
-            sys.stderr.write("Time is <= 0 - do not report\n")
-            #sys.stderr.write(json.dumps(trace))
-          elif (prior_length / (report['t1'] - report['t0'])) * 3.6 < 160:
-            datastore_out['reports'].append(report)
-            successful_count += 1
-            successful_length = round((prior_length * 0.001),3) #convert meters to km
-          else:
-            #Excessive speed - log this as an error
-            sys.stderr.write("Speed exceeds 200kph\n")
-            #sys.stderr.write(json.dumps(trace) + '\n')
-            sys.stderr.flush()
-            invalid_speed_count += 1
-        #Log prior segments on local level not being reported; lets do a count and track prior_segment_ids
-        else:
-          unreported_count += 1
-          unreported_length = round((prior_length * 0.001),3) #convert meters to km
-
-      #Save state for next segment.
-      if internal == True and first_seg != True:
-        #Do not replace information on prior segment, except to mark the prior as internal
-        prior_internal = internal
-      else:
-        prior_segment_id = segment_id
-        prior_start_time = start_time
-        prior_end_time = end_time
-        prior_internal = internal
-        prior_length = length
-        prior_level = level
-        prior_queue_length = queue_length
-
-      first_seg = False
-      idx += 1
-      #Track segments that match to edges that do not have any OSMLR Id and are non-internal (turn channel, roundabout, internal intersection) -
-      #Likely a service road (driveway, alley, parking aisle, etc.)
-      if segment_id is None and internal == False:
-        unassociated_seg_count += 1
-
-    data = {'stats':{'successful_matches':{}, 'unreported_matches':{}, 'match_errors':{}}}
-    if shape_used:
-      data['shape_used'] = shape_used
-    data['segment_matcher'] = segments
-    data['datastore'] = datastore_out
-
-    data['stats']['successful_matches']['count'] = successful_count
-    data['stats']['successful_matches']['length'] = successful_length
-    data['stats']['unreported_matches']['count'] = unreported_count
-    data['stats']['unreported_matches']['length'] = unreported_length
-    data['stats']['match_errors']['discontinuities'] = discontinuities_count
-    data['stats']['match_errors']['invalid_speeds'] = invalid_speed_count
-    data['stats']['unassociated_segments'] = unassociated_seg_count
-
-    return json.dumps(data, separators=(',', ':'))
-
   #parse the request because we dont get this for free!
   def handle_request(self, post):
     #get the trace data
@@ -237,7 +230,11 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
 
     #possibly report on what we have
     try:
-      return 200, self.report(trace)
+      #ask valhalla to give back OSMLR segments along this trace
+      result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
+      match = json.loads(result)
+      data = report(match, trace, thread_local.threshold_sec, thread_local.report_levels, thread_local.transition_levels)
+      return 200, json.dumps(data, separators=(',', ':'))
     except Exception as e:
       return 500, '{"error":"' + str(e) + '"}'
 
