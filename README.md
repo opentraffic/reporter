@@ -244,3 +244,10 @@ Currently we only support a rudimentary form of authentication between the repor
 ## Configuration
 
 The reporter works by using an algorithm called map matching to take gps traces and compute the paths they took given a backing route network. The route network in this case is provided by the [valhalla](https://github.com/valhalla) library which is used to do the map matching algorithm. The algorithm has a number of configuration parameters which can be tuned to the particular use-cases found within the input data. Currently these values are set to sensible defaults and are baked into the docker container. To make changes to these values you'll need to change the `Dockerfile` and build your own container with custom values. These values are set via the `valhalla_build_config` command within the `Dockerfile`. To see the different values for map matching you can run `valhalla_build_config` and have a look at the various `meili` options.
+
+In addition, the Reporter can be configured to determine which levels of the road network can be reported to the Datastore. By default, the configuration is set to report on highway and arterial levels and to exclude local or residential roads. There are 2 environment variables that control this:
+
+* REPORT_LEVELS=0,1,2 - This will enable reporting on all road levels including local roads. The default is set to 0,1 if no environment variable is set. 
+* TRANSITION_LEVELS=0,1,2 - This will enable reporting transitions onto next segment for all road levels, including local roads. The defaults is set to 0,1 if no environment variable is set.
+
+Note that setting to report next segment transitions on all levels will not necessarily mean that all transitions onto local roads will be reported. Since full segments must be traversed, any transition onto a local road that occurs along the middle of an arterial or highway traffic segment will not be reported.
