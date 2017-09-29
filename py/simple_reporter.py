@@ -191,6 +191,7 @@ def match(file_name, quantisation, source, dest_dir):
       traces.setdefault(uuid, []).append({'lat': float(lat), 'lon': float(lon), 'time': int(tm), 'accuracy': int(acc)})
 
   #do each trace in this file
+  tiles = {}
   for uuid, points in traces.iteritems():
     #skip short traces
     trace = {'uuid': uuid, 'trace': points}
@@ -224,23 +225,19 @@ def match(file_name, quantisation, source, dest_dir):
         tile_level = str(get_tile_level(r['id']))
         tile_index = str(get_tile_index(r['id']))
         file_name = dest_dir + os.sep + str(b * quantisation) + '_' + str((b + 1) * quantisation - 1) + os.sep + tile_level + os.sep + tile_index
-        #append to a file
-        try: os.makedirs(os.sep.join(file_name.split(os.sep)[:-1]))
-        except: pass
-        with open(file_name, 'a', 1) as f:
-          s = [
-            str(r['id']),
-            str(r.get('next_id', INVALID_SEGMENT_ID)),
-            str(duration),
-            '1',
-            str(r['length']),
-            str(r['queue_length']),
-            str(start),
-            str(end),
-            source,
-            'AUTO'
-          ]
-          f.write(','.join(s) + os.linesep)
+        s = [
+          str(r['id']), str(r.get('next_id', INVALID_SEGMENT_ID)), str(duration), '1',
+          str(r['length']), str(r['queue_length']), str(start), str(end), source, 'AUTO'
+        ]
+        tiles.setdefault(file_name, []).append(','.join(s) + os.linesep)
+
+  #append to a file
+  for file_name, tile in tiles.iteritems():
+    try: os.makedirs(os.sep.join(file_name.split(os.sep)[:-1]))
+    except: pass
+    serialized = ''.join(tile)
+    with open(file_name, 'a', len(serialized)) as f:
+      f.write(serialized)
 
     #TODO: return the stats part so we can merge them together later on
 
