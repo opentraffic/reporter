@@ -111,7 +111,6 @@ def download(bucket, key, keyer, valuer, time_pattern, bbox, dest_dir):
     file_name = hashlib.sha1(key).hexdigest()
     thread_local.client.download_file(bucket, key, file_name)
     traces = {}
-    total = 0
     logger.info('Downloaded %s' % key)
     with gzip.open(file_name, 'rb') as f:
       for message in f:
@@ -136,7 +135,6 @@ def download(bucket, key, keyer, valuer, time_pattern, bbox, dest_dir):
           chars.insert(i * 3 + i, '/')
         key_file = dest_dir + ''.join(chars)
         traces.setdefault(key_file, []).append(serialized)
-        total += 1
     os.remove(file_name)
     #append them to a file
     for key_file, entries in traces.iteritems():
@@ -149,9 +147,6 @@ def download(bucket, key, keyer, valuer, time_pattern, bbox, dest_dir):
   except Exception as e:
     logger.error('%s was not processed %s' % (key, e))
     raise e
-
-  #let the organizer know how many we did
-  return total
   
 def local_session():
   setattr(thread_local, 'session', boto3.session.Session())
@@ -181,10 +176,10 @@ def get_traces(bucket, prefix, regex, keyer, valuer, time_pattern, bbox, threads
      logger.info('Gathering traces %d%%' % p)
      progress = p
    time.sleep(1)
-  measurements = sum(pool.join())
+  pool.join()
   if progress != 100:
     logger.info('Gathering traces 100%')
-  logger.info('Done gathering %d traces' % measurements)
+  logger.info('Done gathering traces')
   return dest_dir
 
 def match(file_name, quantisation, source, dest_dir):
@@ -204,7 +199,7 @@ def match(file_name, quantisation, source, dest_dir):
   report_levels = set([0, 1])
   transition_levels = set([0, 1])
   threshold_sec = 15
-
+  
   #get the matches for it
   try:
     match_str = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
@@ -212,7 +207,7 @@ def match(file_name, quantisation, source, dest_dir):
     report = reporter_service.report(match, trace, threshold_sec, report_levels, transition_levels)
   except:
     logger.error('Failed to report trace %s' % file_name)
-    return
+    raise Exception('Failed to report trace %s' % json.dumps(trace, separators=(',', ':')))
   
   #weed out the usable segments and then send them off to the time tiles
   segments = [ r for r in report['datastore']['reports'] if r['t0'] > 0 and r['t1'] > 0 and r['t1'] - r['t0'] > .5 and r['length'] > 0 and r['queue_length'] >= 0 ]
@@ -244,8 +239,7 @@ def match(file_name, quantisation, source, dest_dir):
         ]
         f.write(','.join(s) + os.linesep)
 
-    #TODO: return the stats part so we can merge them together later on
-  #return len(traces)
+  #TODO: return the stats part so we can merge them together later on
 
 def local_matcher():
   setattr(thread_local, 'segment_matcher', valhalla.SegmentMatcher())
@@ -261,7 +255,7 @@ def make_matches(trace_dir, config, quantisation, source, threads):
     for file_name in files:
       pool.add_task(match, root + os.sep + file_name, quantisation, source, dest_dir)
       total += 1
-  logger.info('%d trace files have been queued' % total)
+  logger.info('%d traces have been queued' % total)
 
   #monitor progress
   progress = -1
@@ -271,11 +265,10 @@ def make_matches(trace_dir, config, quantisation, source, threads):
      logger.info('Matching trace data %d%%' % p)
      progress = p
    time.sleep(1)
-  traces = sum(pool.join())
-  traces = total #TODO: remove this when we get more than one trace per file
+  pool.join()
   if progress != 100:
     logger.info('Matching trace data 100%')
-  logger.info('Done matching %d traces' % traces)
+  logger.info('Done matching trace data')
   return dest_dir
   
 def report(file_name, bucket, privacy):
@@ -308,12 +301,12 @@ def report(file_name, bucket, privacy):
   #write the lines to a file like object and upload it
   with contextlib.closing(cStringIO.StringIO()) as f:
     f.write('segment_id,next_segment_id,duration,count,length,queue_length,minimum_timestamp,maximum_timestamp,source,vehicle_type' + os.linesep)
-    f.write(''.join(segments))
+    for s in segments:
+      f.write(s)
     thread_local.client.put_object(
       Bucket=bucket,
       Body=f.getvalue(),
-      Key='/'.join(file_name.split(os.sep)[1:]) + '/' + hashlib.sha1(file_name).hexdigest())
-  return len(segments)
+      Key='/'.join(file_name.split(os.sep)[1:]) + '/' + hashlib.sha1(file_name).hexdigest())  
 
 def report_tiles(match_dir, bucket, privacy, threads):
   #download and parse them into proper files
@@ -334,10 +327,10 @@ def report_tiles(match_dir, bucket, privacy, threads):
      logger.info('Reporting tiles %d%%' % p)
      progress = p
    time.sleep(1)
-  segments = sum(pool.join())
+  pool.join()
   if progress != 100:
     logger.info('Reporting tiles 100%')
-  logger.info('Done reporting tiles containing %d segment pairs' % segments)
+  logger.info('Done reporting tiles')
 
 def check_box(bbox):
   b = [ float(b) for b in bbox.split(',') ]
@@ -373,7 +366,7 @@ if __name__ == '__main__':
 
   #do matching on every file
   if not args.match_dir:
-   args.match_dir = make_matches(args.trace_dir, args.match_config, args.quantisation, args.source_id, args.concurrency)
+    args.match_dir = make_matches(args.trace_dir, args.match_config, args.quantisation, args.source_id, args.concurrency)
 
   #filter and upload all the data
   report_tiles(args.match_dir, args.dest_bucket, args.privacy, args.concurrency)
