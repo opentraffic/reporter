@@ -103,11 +103,15 @@ def get_prefixes_keys(client, bucket, prefixes):
       first = False
   return pres, keys
 
-def download(bucket, key, keyer, valuer, bbox, dest_dir):
+def download(bucket, key, keyer, valuer, time_pattern, bbox, dest_dir):
+  #TODO: just parse the time pattern pieces out and be more flexible
+  fast_time = time_pattern == '%Y-%m-%d %H:%M:%S'
   #go get it
   try:
     file_name = hashlib.sha1(key).hexdigest()
-    thread_local.client.download_file(bucket, key, file_name)
+    #thread_local.client.download_file(bucket, key, file_name)
+    traces = {}
+    total = 0
     logger.info('Downloaded %s' % key)
     with gzip.open(file_name, 'rb') as f:
       for message in f:
@@ -117,28 +121,43 @@ def download(bucket, key, keyer, valuer, bbox, dest_dir):
         lon = float(value[2])
         if lat < bbox[0] or lat > bbox[2] or lon < bbox[1] or lon > bbox[3]:
           continue
+        if fast_time:
+          tm = time.struct_time((int(value[0][0:4]), int(value[0][5:7]), int(value[0][8:10]), int(value[0][11:13]), int(value[0][14:16]), int(value[0][17:19]), 0, 0, 0))
+        else:
+          tm = time.strptime(value[0], time_pattern)
+        tm = calendar.timegm(tm)
+        acc = min(int(math.ceil(float(value[3]))), 1000)
+        message_key = keyer(message)
+        serialized = ','.join([ str(i) for i in [tm, lat, lon, acc] ]) + os.linesep
         #hash the id part and get the values out
-        key_file = keyer(message)
-        key_file = '00' + hashlib.sha1(key_file).hexdigest()
+        key_file = '00' + hashlib.sha1(message_key).hexdigest()
         chars = list(key_file)
         for i in range(0, 14):
           chars.insert(i * 3 + i, '/')
         key_file = dest_dir + ''.join(chars)
-        #append them to a file
-        try: os.makedirs(os.sep.join(key_file.split('/')[:-1]))
-        except: pass
-        with open(key_file, 'a', 1) as kf:
-          kf.write(','.join(value) + os.linesep)
+        traces.setdefault(key_file, []).append(serialized)
+        total += 1
+    #os.remove(file_name)
+    #append them to a file
+    for key_file, entries in traces.iteritems():
+      try: os.makedirs(os.sep.join(key_file.split('/')[:-1]))
+      except: pass
+      serialized = ''.join(entries)
+      with open(key_file, 'a', len(serialized)) as kf:
+        kf.write(serialized)
     logger.info('Gathered traces from %s' % key)
-    os.remove(file_name)
   except Exception as e:
     logger.error('%s was not processed %s' % (key, e))
+    raise e
+
+  #let the organizer know how many we did
+  return total
   
 def local_session():
   setattr(thread_local, 'session', boto3.session.Session())
   setattr(thread_local, 'client', thread_local.session.client('s3'))
 
-def get_traces(bucket, prefix, regex, keyer, valuer, bbox, threads):
+def get_traces(bucket, prefix, regex, keyer, valuer, time_pattern, bbox, threads):
   logger.info('Getting source data keys from bucket %s using prefix %s' % (bucket, prefix))
   #get the proper keys we care about
   _, keys = get_prefixes_keys(boto3.client('s3'), bucket, [prefix])
@@ -150,7 +169,7 @@ def get_traces(bucket, prefix, regex, keyer, valuer, bbox, threads):
   pool = ThreadPool(threads, local_session)
   total = 0.0
   for key in filtered:
-    pool.add_task(download, bucket, key, keyer, valuer, bbox, dest_dir)
+    pool.add_task(download, bucket, key, keyer, valuer, time_pattern, bbox, dest_dir)
     total += 1
   logger.info('%d source files have been queued' % total)
 
@@ -162,20 +181,19 @@ def get_traces(bucket, prefix, regex, keyer, valuer, bbox, threads):
      logger.info('Gathering traces %d%%' % p)
      progress = p
    time.sleep(1)
-  pool.join()
+  measurements = sum(pool.join())
   if progress != 100:
     logger.info('Gathering traces 100%')
-  logger.info('Done gathering traces')
+  logger.info('Done gathering %d traces' % measurements)
   return dest_dir
 
-def match(file_name, time_pattern, quantisation, source, dest_dir):
+def match(file_name, quantisation, source, dest_dir):
   #get out the data into a request payload
   trace = { 'uuid': file_name, 'trace': [] }
   with open(file_name, 'r') as f:
     for line in f:
       tm, lat, lon, acc = tuple(line.strip().split(','))
-      tm = calendar.timegm(time.strptime(tm, time_pattern))
-      trace['trace'].append({'lat': float(lat), 'lon': float(lon), 'time': tm, 'accuracy': int(math.ceil(float(acc)))})
+      trace['trace'].append({'lat': float(lat), 'lon': float(lon), 'time': int(tm), 'accuracy': int(acc)})
 
   #skip short traces
   if len(trace['trace']) < 2:
@@ -186,7 +204,7 @@ def match(file_name, time_pattern, quantisation, source, dest_dir):
   report_levels = set([0, 1])
   transition_levels = set([0, 1])
   threshold_sec = 15
-  
+
   #get the matches for it
   try:
     match_str = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
@@ -226,12 +244,13 @@ def match(file_name, time_pattern, quantisation, source, dest_dir):
         ]
         f.write(','.join(s) + os.linesep)
 
-  #TODO: return the stats part so we can merge them together later on
+    #TODO: return the stats part so we can merge them together later on
+  #return len(traces)
 
 def local_matcher():
   setattr(thread_local, 'segment_matcher', valhalla.SegmentMatcher())
 
-def make_matches(trace_dir, config, time_pattern, quantisation, source, threads):
+def make_matches(trace_dir, config, quantisation, source, threads):
   #download and parse them into proper files
   dest_dir = tempfile.mkdtemp(dir='')
   logger.info('Matching trace data to osmlr segments into %s' % dest_dir)
@@ -240,9 +259,9 @@ def make_matches(trace_dir, config, time_pattern, quantisation, source, threads)
   total = 0.0
   for root, dirs, files in os.walk(trace_dir):
     for file_name in files:
-      pool.add_task(match, root + os.sep + file_name, time_pattern, quantisation, source, dest_dir)
+      pool.add_task(match, root + os.sep + file_name, quantisation, source, dest_dir)
       total += 1
-  logger.info('%d traces have been queued' % total)
+  logger.info('%d trace files have been queued' % total)
 
   #monitor progress
   progress = -1
@@ -252,10 +271,11 @@ def make_matches(trace_dir, config, time_pattern, quantisation, source, threads)
      logger.info('Matching trace data %d%%' % p)
      progress = p
    time.sleep(1)
-  pool.join()
+  traces = sum(pool.join())
+  traces = total #TODO: remove this when we get more than one trace per file
   if progress != 100:
     logger.info('Matching trace data 100%')
-  logger.info('Done matching trace data')
+  logger.info('Done matching %d traces' % traces)
   return dest_dir
   
 def report(file_name, bucket, privacy):
@@ -288,12 +308,12 @@ def report(file_name, bucket, privacy):
   #write the lines to a file like object and upload it
   with contextlib.closing(cStringIO.StringIO()) as f:
     f.write('segment_id,next_segment_id,duration,count,length,queue_length,minimum_timestamp,maximum_timestamp,source,vehicle_type' + os.linesep)
-    for s in segments:
-      f.write(s)
+    f.write(''.join(segments))
     thread_local.client.put_object(
       Bucket=bucket,
       Body=f.getvalue(),
-      Key='/'.join(file_name.split(os.sep)[1:]) + '/' + hashlib.sha1(file_name).hexdigest())  
+      Key='/'.join(file_name.split(os.sep)[1:]) + '/' + hashlib.sha1(file_name).hexdigest())
+  return len(segments)
 
 def report_tiles(match_dir, bucket, privacy, threads):
   #download and parse them into proper files
@@ -314,10 +334,10 @@ def report_tiles(match_dir, bucket, privacy, threads):
      logger.info('Reporting tiles %d%%' % p)
      progress = p
    time.sleep(1)
-  pool.join()
+  segments = sum(pool.join())
   if progress != 100:
     logger.info('Reporting tiles 100%')
-  logger.info('Done reporting tiles')
+  logger.info('Done reporting tiles containing %d segment pairs' % segments)
 
 def check_box(bbox):
   b = [ float(b) for b in bbox.split(',') ]
@@ -341,18 +361,22 @@ if __name__ == '__main__':
   parser.add_argument('--dest-bucket', type=str, help='Bucket where we want to put the reporter output', required=True)
   parser.add_argument('--concurrency', type=int, help='Number of threads to use when doing various stages of processing', default=multiprocessing.cpu_count())
   parser.add_argument('--bbox', type=check_box, help='Comma separated coordinates within which data will be reported: min_lat,min_lon,max_lat,max_lon', default=[-90.0,-180.0,90.0,180.0])
+  parser.add_argument('--trace-dir', type=str, help='To bypass trace gathering supply the directory with already parsed traces')
+  parser.add_argument('--match-dir', type=str, help='To bypass trace matching supply the directory with the already matched segments')
   args = parser.parse_args()
 
   #fetch the data and divide it up
   exec('keyer = ' + args.src_keyer)
   exec('valuer = ' + args.src_valuer)
-  trace_dir = get_traces(args.src_bucket, args.src_prefix, re.compile(args.src_key_regex), keyer, valuer, args.bbox, args.concurrency)
+  if not args.trace_dir and not args.match_dir:
+    args.trace_dir = get_traces(args.src_bucket, args.src_prefix, re.compile(args.src_key_regex), keyer, valuer, args.src_time_pattern, args.bbox, args.concurrency)
 
   #do matching on every file
-  match_dir = make_matches(trace_dir, args.match_config, args.src_time_pattern, args.quantisation, args.source_id, args.concurrency)
+  if not args.match_dir:
+   args.match_dir = make_matches(args.trace_dir, args.match_config, args.quantisation, args.source_id, args.concurrency)
 
   #filter and upload all the data
-  report_tiles(match_dir, args.dest_bucket, args.privacy, args.concurrency)
+  report_tiles(args.match_dir, args.dest_bucket, args.privacy, args.concurrency)
 
   #clean up the data
   #os.remove(src_dir)
