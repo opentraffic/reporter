@@ -109,7 +109,7 @@ def download(bucket, key, keyer, valuer, time_pattern, bbox, dest_dir):
   #go get it
   try:
     file_name = hashlib.sha1(key).hexdigest()
-    #thread_local.client.download_file(bucket, key, file_name)
+    thread_local.client.download_file(bucket, key, file_name)
     traces = {}
     total = 0
     logger.info('Downloaded %s' % key)
@@ -137,7 +137,7 @@ def download(bucket, key, keyer, valuer, time_pattern, bbox, dest_dir):
         key_file = dest_dir + ''.join(chars)
         traces.setdefault(key_file, []).append(serialized)
         total += 1
-    #os.remove(file_name)
+    os.remove(file_name)
     #append them to a file
     for key_file, entries in traces.iteritems():
       try: os.makedirs(os.sep.join(key_file.split('/')[:-1]))
