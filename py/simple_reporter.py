@@ -109,7 +109,7 @@ def download(bucket, key, keyer, valuer, time_pattern, bbox, dest_dir):
   #go get it
   try:
     file_name = hashlib.sha1(key).hexdigest()
-    thread_local.client.download_file(bucket, key, file_name)
+    #thread_local.client.download_file(bucket, key, file_name)
     traces = {}
     logger.info('Downloaded %s' % key)
     with gzip.open(file_name, 'rb') as f:
@@ -126,17 +126,17 @@ def download(bucket, key, keyer, valuer, time_pattern, bbox, dest_dir):
           tm = time.strptime(value[0], time_pattern)
         tm = calendar.timegm(tm)
         acc = min(int(math.ceil(float(value[3]))), 1000)
-        message_key = keyer(message)
-        serialized = ','.join([ str(i) for i in [tm, lat, lon, acc] ]) + os.linesep
-        #hash the id part and get the values out
-        key_file = '00' + hashlib.sha1(message_key).hexdigest()
-        chars = list(key_file)
-        for i in range(0, 14):
-          chars.insert(i * 3 + i, '/')
-        key_file = dest_dir + ''.join(chars)
+        uuid = keyer(message)
+        serialized = ','.join([ str(i) for i in [uuid, tm, lat, lon, acc] ]) + os.linesep
+
+        #hash the id part and get the values out, only take a little bit to force hash colisions
+        key_file = list('00' + hashlib.sha1(uuid).hexdigest())[0:6]
+        key_file.insert(3, os.sep)
+        key_file = dest_dir + os.sep + ''.join(key_file)
         traces.setdefault(key_file, []).append(serialized)
-    os.remove(file_name)
+
     #append them to a file
+    #os.remove(file_name)
     for key_file, entries in traces.iteritems():
       try: os.makedirs(os.sep.join(key_file.split('/')[:-1]))
       except: pass
@@ -184,62 +184,65 @@ def get_traces(bucket, prefix, regex, keyer, valuer, time_pattern, bbox, threads
 
 def match(file_name, quantisation, source, dest_dir):
   #get out the data into a request payload
-  trace = { 'uuid': file_name, 'trace': [] }
+  traces = {}
   with open(file_name, 'r') as f:
     for line in f:
-      tm, lat, lon, acc = tuple(line.strip().split(','))
-      trace['trace'].append({'lat': float(lat), 'lon': float(lon), 'time': int(tm), 'accuracy': int(acc)})
+      uuid, tm, lat, lon, acc = tuple(line.strip().split(','))
+      traces.setdefault(uuid, []).append({'lat': float(lat), 'lon': float(lon), 'time': int(tm), 'accuracy': int(acc)})
 
-  #skip short traces
-  if len(trace['trace']) < 2:
-    return
+  #do each trace in this file
+  for uuid, points in traces.iteritems():
+    #skip short traces
+    trace = {'uuid': uuid, 'trace': points}
+    if len(trace['trace']) < 2:
+      return
 
-  #sort the points by time in case threads were competing on the file
-  trace['trace'].sort(key=lambda v:v['time'])
-  report_levels = set([0, 1])
-  transition_levels = set([0, 1])
-  threshold_sec = 15
-  
-  #get the matches for it
-  try:
-    match_str = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
-    match = json.loads(match_str)
-    report = reporter_service.report(match, trace, threshold_sec, report_levels, transition_levels)
-  except:
-    logger.error('Failed to report trace %s' % file_name)
-    raise Exception('Failed to report trace %s' % json.dumps(trace, separators=(',', ':')))
-  
-  #weed out the usable segments and then send them off to the time tiles
-  segments = [ r for r in report['datastore']['reports'] if r['t0'] > 0 and r['t1'] > 0 and r['t1'] - r['t0'] > .5 and r['length'] > 0 and r['queue_length'] >= 0 ]
-  for r in segments:
-    duration = int(round(r['t1'] - r['t0']))
-    start = int(math.floor(r['t0']))
-    end = int(math.ceil(r['t1']))
-    min_bucket = int(start / quantisation)
-    max_bucket = int(end / quantisation)
-    for b in range(min_bucket, max_bucket + 1):
-      tile_level = str(get_tile_level(r['id']))
-      tile_index = str(get_tile_index(r['id']))
-      file_name = dest_dir + os.sep + str(b * quantisation) + '_' + str((b + 1) * quantisation - 1) + os.sep + tile_level + os.sep + tile_index
-      #append to a file
-      try: os.makedirs(os.sep.join(file_name.split(os.sep)[:-1]))
-      except: pass
-      with open(file_name, 'a', 1) as f:
-        s = [
-          str(r['id']),
-          str(r.get('next_id', INVALID_SEGMENT_ID)),
-          str(duration),
-          '1',
-          str(r['length']),
-          str(r['queue_length']),
-          str(start),
-          str(end),
-          source,
-          'AUTO'
-        ]
-        f.write(','.join(s) + os.linesep)
+    #sort the points by time in case threads were competing on the file
+    trace['trace'].sort(key=lambda v:v['time'])
+    report_levels = set([0, 1])
+    transition_levels = set([0, 1])
+    threshold_sec = 15
+    
+    #get the matches for it
+    try:
+      match_str = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
+      match = json.loads(match_str)
+      report = reporter_service.report(match, trace, threshold_sec, report_levels, transition_levels)
+    except:
+      logger.error('Failed to report trace %s: ' % (file_name, json.dumps(trace, separators=(',', ':'))))
+      continue
+    
+    #weed out the usable segments and then send them off to the time tiles
+    segments = [ r for r in report['datastore']['reports'] if r['t0'] > 0 and r['t1'] > 0 and r['t1'] - r['t0'] > .5 and r['length'] > 0 and r['queue_length'] >= 0 ]
+    for r in segments:
+      duration = int(round(r['t1'] - r['t0']))
+      start = int(math.floor(r['t0']))
+      end = int(math.ceil(r['t1']))
+      min_bucket = int(start / quantisation)
+      max_bucket = int(end / quantisation)
+      for b in range(min_bucket, max_bucket + 1):
+        tile_level = str(get_tile_level(r['id']))
+        tile_index = str(get_tile_index(r['id']))
+        file_name = dest_dir + os.sep + str(b * quantisation) + '_' + str((b + 1) * quantisation - 1) + os.sep + tile_level + os.sep + tile_index
+        #append to a file
+        try: os.makedirs(os.sep.join(file_name.split(os.sep)[:-1]))
+        except: pass
+        with open(file_name, 'a', 1) as f:
+          s = [
+            str(r['id']),
+            str(r.get('next_id', INVALID_SEGMENT_ID)),
+            str(duration),
+            '1',
+            str(r['length']),
+            str(r['queue_length']),
+            str(start),
+            str(end),
+            source,
+            'AUTO'
+          ]
+          f.write(','.join(s) + os.linesep)
 
-  #TODO: return the stats part so we can merge them together later on
+    #TODO: return the stats part so we can merge them together later on
 
 def local_matcher():
   setattr(thread_local, 'segment_matcher', valhalla.SegmentMatcher())
@@ -351,7 +354,7 @@ if __name__ == '__main__':
   parser.add_argument('--quantisation', type=int, help='How large are the buckets to make tiles for. They should always be an hour (3600 seconds)', default=3600)
   parser.add_argument('--privacy', type=int, help='How many readings of a given segment pair must appear before it being reported', default=2)
   parser.add_argument('--source-id', type=str, help='A simple string to identify where these readings came from', default='smpl_rprt')
-  parser.add_argument('--dest-bucket', type=str, help='Bucket where we want to put the reporter output', required=True)
+  parser.add_argument('--dest-bucket', type=str, help='Bucket where we want to put the reporter output')
   parser.add_argument('--concurrency', type=int, help='Number of threads to use when doing various stages of processing', default=multiprocessing.cpu_count())
   parser.add_argument('--bbox', type=check_box, help='Comma separated coordinates within which data will be reported: min_lat,min_lon,max_lat,max_lon', default=[-90.0,-180.0,90.0,180.0])
   parser.add_argument('--trace-dir', type=str, help='To bypass trace gathering supply the directory with already parsed traces')
@@ -369,7 +372,8 @@ if __name__ == '__main__':
     args.match_dir = make_matches(args.trace_dir, args.match_config, args.quantisation, args.source_id, args.concurrency)
 
   #filter and upload all the data
-  report_tiles(args.match_dir, args.dest_bucket, args.privacy, args.concurrency)
+  if args.dest_bucket:
+    report_tiles(args.match_dir, args.dest_bucket, args.privacy, args.concurrency)
 
   #clean up the data
   #os.remove(src_dir)
