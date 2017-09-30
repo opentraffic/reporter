@@ -109,7 +109,7 @@ def download(bucket, key, valuer, time_pattern, bbox, dest_dir):
   #go get it
   try:
     file_name = hashlib.sha1(key).hexdigest()
-    #thread_local.client.download_file(bucket, key, file_name)
+    thread_local.client.download_file(bucket, key, file_name)
     traces = {}
     logger.info('Downloaded %s' % key)
     with gzip.open(file_name, 'rb') as f:
@@ -135,7 +135,7 @@ def download(bucket, key, valuer, time_pattern, bbox, dest_dir):
         traces.setdefault(key_file, []).append(serialized)
 
     #append them to a file
-    #os.remove(file_name)
+    os.remove(file_name)
     for key_file, entries in traces.iteritems():
       try: os.makedirs(os.sep.join(key_file.split('/')[:-1]))
       except: pass
