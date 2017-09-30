@@ -260,12 +260,9 @@ optional arguments:
                         Bucket prefix for getting source data
   --src-key-regex SRC_KEY_REGEX
                         Bucket key regex for getting source data
-  --src-keyer SRC_KEYER
-                        A lambda used to extract the key from a given message
-                        in the input
   --src-valuer SRC_VALUER
-                        A lambda used to extract the time, lat, lon, accuracy
-                        from a given message in the input
+                        A lambda used to extract the uid, time, lat, lon and
+                        accuracy from a given message in the input
   --src-time-pattern SRC_TIME_PATTERN
                         A string used to extract epoch seconds from a time
                         string
@@ -294,10 +291,11 @@ optional arguments:
                         already matched segments
 ```
 
-Note that the program requires access to the map matching python module. The module is currently only available on linux and so the use of the program would depend on having access to a linux machine or docker.
+Note that the program requires access to the map matching python module and a match config. The module is currently only available on linux and so the use of the program would depend on having access to a linux machine or docker.
 
-The program works by first spawning a bunch of threads to download the source data from the bucket provided. You can use a regex to limit the data downloaded to just those files which match the regex. As the threads are downloading the source data they are parsing it according to the valuer lambda used to extract the various important information from a given line of the file. It also uses the time pattern to parse the time strings from the source data as well. This parsed data will be stored in many separate files each containing only the data for a small number of unique vehicles. After that source data is parsed and accumulated, more threads are spawned to crawl over the files and for each one assemble the trace of a given vehicle, get its osmlr segments and store those in the appropriate time tile files. After all traces have been matched to osmlr segments another set of threads is spawned to sort the tiles contents and remove observations which to meet the privacy threshold specified. The tiles are then uploaded to s3 where the datastore can do further processing.
+The program works by first spawning a bunch of threads to download the source data from the bucket provided. You can use a regex to limit the data downloaded to just those files which match the regex. As the threads are downloading the source data they are parsing it according to the valuer lambda used to extract the various important information from a given line of the file. It also uses the time pattern to parse the time strings from the source data as well. This parsed data will be stored in many separate files each containing only the data for a small number of unique vehicles. After that source data is parsed and accumulated, more threads are spawned to crawl over the files and for each one assemble the trace of a given vehicle, get its osmlr segments and store those in the appropriate time tile files according to the quantisation parameter. After all traces have been matched to osmlr segments another set of threads is spawned to sort the tiles contents and remove observations which to meet the privacy threshold specified. The tiles are then uploaded to s3 where the datastore can do further processing. To reduce processing time and requirements you can specify a bounding box although this still requires all the source data to be filtered so it doesn't affect the time spent downloading sources.
 
+The program can also allow you to resume processing at a certain phase. If for example you've downloaded all the data but stopped processing it during matching, you can resume with the matching process by using the the `--trace-dir` aregument. Similarly if you want to resume after the matching has finished you can pass the `--match-dir` argument. 
 
 ## Authentication
 

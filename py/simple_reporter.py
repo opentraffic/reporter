@@ -103,7 +103,7 @@ def get_prefixes_keys(client, bucket, prefixes):
       first = False
   return pres, keys
 
-def download(bucket, key, keyer, valuer, time_pattern, bbox, dest_dir):
+def download(bucket, key, valuer, time_pattern, bbox, dest_dir):
   #TODO: just parse the time pattern pieces out and be more flexible
   fast_time = time_pattern == '%Y-%m-%d %H:%M:%S'
   #go get it
@@ -115,18 +115,17 @@ def download(bucket, key, keyer, valuer, time_pattern, bbox, dest_dir):
     with gzip.open(file_name, 'rb') as f:
       for message in f:
         #skip stuff not in bbox
-        value = valuer(message)
-        lat = float(value[1])
-        lon = float(value[2])
+        uuid, tm, lat, lon, acc = valuer(message)
+        lat = float(lat)
+        lon = float(lon)
         if lat < bbox[0] or lat > bbox[2] or lon < bbox[1] or lon > bbox[3]:
           continue
         if fast_time:
-          tm = time.struct_time((int(value[0][0:4]), int(value[0][5:7]), int(value[0][8:10]), int(value[0][11:13]), int(value[0][14:16]), int(value[0][17:19]), 0, 0, 0))
+          tm = time.struct_time((int(tm[0:4]), int(tm[5:7]), int(tm[8:10]), int(tm[11:13]), int(tm[14:16]), int(tm[17:19]), 0, 0, 0))
         else:
-          tm = time.strptime(value[0], time_pattern)
+          tm = time.strptime(tm, time_pattern)
         tm = calendar.timegm(tm)
-        acc = min(int(math.ceil(float(value[3]))), 1000)
-        uuid = keyer(message)
+        acc = min(int(math.ceil(float(acc))), 1000)
         serialized = ','.join([ str(i) for i in [uuid, tm, lat, lon, acc] ]) + os.linesep
 
         #hash the id part and get the values out, only take a little bit to force hash colisions
@@ -152,7 +151,7 @@ def local_session():
   setattr(thread_local, 'session', boto3.session.Session())
   setattr(thread_local, 'client', thread_local.session.client('s3'))
 
-def get_traces(bucket, prefix, regex, keyer, valuer, time_pattern, bbox, threads):
+def get_traces(bucket, prefix, regex, valuer, time_pattern, bbox, threads):
   logger.info('Getting source data keys from bucket %s using prefix %s' % (bucket, prefix))
   #get the proper keys we care about
   _, keys = get_prefixes_keys(boto3.client('s3'), bucket, [prefix])
@@ -164,7 +163,7 @@ def get_traces(bucket, prefix, regex, keyer, valuer, time_pattern, bbox, threads
   pool = ThreadPool(threads, local_session)
   total = 0.0
   for key in filtered:
-    pool.add_task(download, bucket, key, keyer, valuer, time_pattern, bbox, dest_dir)
+    pool.add_task(download, bucket, key, valuer, time_pattern, bbox, dest_dir)
     total += 1
   logger.info('%d source files have been queued' % total)
 
@@ -194,15 +193,15 @@ def match(file_name, quantisation, source, dest_dir):
   tiles = {}
   for uuid, points in traces.iteritems():
     #skip short traces
-    trace = {'uuid': uuid, 'trace': points}
-    if len(trace['trace']) < 2:
-      return
+    if len(points) < 2:
+      continue
 
     #sort the points by time in case threads were competing on the file
-    trace['trace'].sort(key=lambda v:v['time'])
+    points.sort(key=lambda v:v['time'])
     report_levels = set([0, 1])
     transition_levels = set([0, 1])
     threshold_sec = 15
+    trace = {'uuid': uuid, 'trace': points}
     
     #get the matches for it
     try:
@@ -344,8 +343,7 @@ if __name__ == '__main__':
   parser.add_argument('--src-bucket', type=str, help='Bucket where to get the input trace data from', required=True)
   parser.add_argument('--src-prefix', type=str, help='Bucket prefix for getting source data', required=True)
   parser.add_argument('--src-key-regex', type=str, help='Bucket key regex for getting source data', default='.*')
-  parser.add_argument('--src-keyer', type=str, help='A lambda used to extract the key from a given message in the input', default='lambda l: l.split("|")[1]')
-  parser.add_argument('--src-valuer', type=str, help='A lambda used to extract the time, lat, lon, accuracy from a given message in the input', default='lambda l: functools.partial(lambda c: [c[0], c[9], c[10], c[5] ], l.split("|"))()')
+  parser.add_argument('--src-valuer', type=str, help='A lambda used to extract the uid, time, lat, lon, accuracy from a given message in the input', default='lambda l: functools.partial(lambda c: [c[1], c[0], c[9], c[10], c[5] ], l.split("|"))()')
   parser.add_argument('--src-time-pattern', type=str, help='A string used to extract epoch seconds from a time string', default='%Y-%m-%d %H:%M:%S')
   parser.add_argument('--match-config', type=str, help='A file containing the config for the map matcher', required=True)
   parser.add_argument('--quantisation', type=int, help='How large are the buckets to make tiles for. They should always be an hour (3600 seconds)', default=3600)
@@ -359,10 +357,9 @@ if __name__ == '__main__':
   args = parser.parse_args()
 
   #fetch the data and divide it up
-  exec('keyer = ' + args.src_keyer)
   exec('valuer = ' + args.src_valuer)
   if not args.trace_dir and not args.match_dir:
-    args.trace_dir = get_traces(args.src_bucket, args.src_prefix, re.compile(args.src_key_regex), keyer, valuer, args.src_time_pattern, args.bbox, args.concurrency)
+    args.trace_dir = get_traces(args.src_bucket, args.src_prefix, re.compile(args.src_key_regex), valuer, args.src_time_pattern, args.bbox, args.concurrency)
 
   #do matching on every file
   if not args.match_dir:
