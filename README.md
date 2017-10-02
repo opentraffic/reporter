@@ -237,6 +237,66 @@ docker build --tag opentraffic/reporter:test --force-rm .
 docker push opentraffic/reporter:test
 ```
 
+## Alternatives to Kafka
+
+Kafka is quite a bit of architecture with a lot of nice features and is being already used in organizations who handle a lot of data. For this reason kafka was an obvious choice for our on premisis work. For those that want to run the reporter but don't want to manage the complexity of Kafka we have developed a simple script to make the same types of output the kafka reporters do. The scripted is located in `py/simple_reporter.py`. It's inputs are as follows:
+
+```
+usage: simple_reporter.py [-h] --src-bucket SRC_BUCKET --src-prefix SRC_PREFIX
+                          [--src-key-regex SRC_KEY_REGEX]
+                          [--src-keyer SRC_KEYER] [--src-valuer SRC_VALUER]
+                          [--src-time-pattern SRC_TIME_PATTERN] --match-config
+                          MATCH_CONFIG [--quantisation QUANTISATION]
+                          [--privacy PRIVACY] [--source-id SOURCE_ID]
+                          [--dest-bucket DEST_BUCKET]
+                          [--concurrency CONCURRENCY] [--bbox BBOX]
+                          [--trace-dir TRACE_DIR] [--match-dir MATCH_DIR]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --src-bucket SRC_BUCKET
+                        Bucket where to get the input trace data from
+  --src-prefix SRC_PREFIX
+                        Bucket prefix for getting source data
+  --src-key-regex SRC_KEY_REGEX
+                        Bucket key regex for getting source data
+  --src-valuer SRC_VALUER
+                        A lambda used to extract the uid, time, lat, lon and
+                        accuracy from a given message in the input
+  --src-time-pattern SRC_TIME_PATTERN
+                        A string used to extract epoch seconds from a time
+                        string
+  --match-config MATCH_CONFIG
+                        A file containing the config for the map matcher
+  --quantisation QUANTISATION
+                        How large are the buckets to make tiles for. They
+                        should always be an hour (3600 seconds)
+  --privacy PRIVACY     How many readings of a given segment pair must appear
+                        before it being reported
+  --source-id SOURCE_ID
+                        A simple string to identify where these readings came
+                        from
+  --dest-bucket DEST_BUCKET
+                        Bucket where we want to put the reporter output
+  --concurrency CONCURRENCY
+                        Number of threads to use when doing various stages of
+                        processing
+  --bbox BBOX           Comma separated coordinates within which data will be
+                        reported: min_lat,min_lon,max_lat,max_lon
+  --trace-dir TRACE_DIR
+                        To bypass trace gathering supply the directory with
+                        already parsed traces
+  --match-dir MATCH_DIR
+                        To bypass trace matching supply the directory with the
+                        already matched segments
+```
+
+Note that the program requires access to the map matching python module and a match config. The module is currently only available on linux and so the use of the program would depend on having access to a linux machine or docker.
+
+The program works by first spawning a bunch of threads to download the source data from the bucket provided. You can use a regex to limit the data downloaded to just those files which match the regex. As the threads are downloading the source data they are parsing it according to the valuer lambda used to extract the various important information from a given line of the file. It also uses the time pattern to parse the time strings from the source data as well. This parsed data will be stored in many separate files each containing only the data for a small number of unique vehicles. After that source data is parsed and accumulated, more threads are spawned to crawl over the files and for each one assemble the trace of a given vehicle, get its osmlr segments and store those in the appropriate time tile files according to the quantisation parameter. After all traces have been matched to osmlr segments another set of threads is spawned to sort the tiles contents and remove observations which to meet the privacy threshold specified. The tiles are then uploaded to s3 where the datastore can do further processing. To reduce processing time and requirements you can specify a bounding box although this still requires all the source data to be filtered so it doesn't affect the time spent downloading sources.
+
+The program can also allow you to resume processing at a certain phase. If for example you've downloaded all the data but stopped processing it during matching, you can resume with the matching process by using the the `--trace-dir` aregument. Similarly if you want to resume after the matching has finished you can pass the `--match-dir` argument. 
+
 ## Authentication
 
 Currently we only support a rudimentary form of authentication between the reporter and the datastore. The idea is that the reporter will be run on premisis (ie. by fleet operator) and will then need to authenticate itself with the centralized datastore architecture. For now this is done via s3 authentication where fleet operators will be given keys to access s3. More info about connecting the reporter to s3 can be found by running the kafka-reporter without argument to see configuration parameter.
