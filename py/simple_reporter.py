@@ -153,7 +153,7 @@ def match(file_names, config, quantisation, source, dest_dir):
         match = json.loads(match_str)
         report = reporter_service.report(match, trace, threshold_sec, report_levels, transition_levels)
       except:
-        logger.error('Failed to report trace %s: ' % (file_name, json.dumps(trace, separators=(',', ':'))))
+        logger.error('Failed to report trace from %s: %s' % (file_name, json.dumps(trace, separators=(',', ':'))))
         continue
       
       #weed out the usable segments and then send them off to the time tiles
