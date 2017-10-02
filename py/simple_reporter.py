@@ -129,16 +129,12 @@ def download(bucket, key, valuer, time_pattern, bbox, dest_dir):
         serialized = ','.join([ str(i) for i in [uuid, tm, lat, lon, acc] ]) + os.linesep
 
         #hash the id part and get the values out, only take a little bit to force hash colisions
-        key_file = list('00' + hashlib.sha1(uuid).hexdigest())[0:6]
-        key_file.insert(3, os.sep)
-        key_file = dest_dir + os.sep + ''.join(key_file)
+        key_file = dest_dir + os.sep + hashlib.sha1(uuid).hexdigest()[0:3]
         traces.setdefault(key_file, []).append(serialized)
 
     #append them to a file
     os.remove(file_name)
     for key_file, entries in traces.iteritems():
-      try: os.makedirs(os.sep.join(key_file.split('/')[:-1]))
-      except: pass
       serialized = ''.join(entries)
       with open(key_file, 'a', len(serialized)) as kf:
         kf.write(serialized)
