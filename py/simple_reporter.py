@@ -2,18 +2,15 @@
 
 import argparse
 import boto3
-import urllib
 import functools
+import sys
 import os
 import re
-import traceback
 import logging
 import gzip
 import cStringIO
 import contextlib
-import Queue
 import multiprocessing
-import threading
 import tempfile
 import hashlib
 import time
@@ -80,6 +77,12 @@ def split(l, n):
     pos = end
   return result
 
+def interrupt_wrapper(func):
+  try:
+    func()
+  except (KeyboardInterrupt, SystemExit):
+    logger.error('Interrupted or killed')
+
 def download(bucket, keys, valuer, time_pattern, bbox, dest_dir):
   session = boto3.session.Session()
   client = session.client('s3')
@@ -119,10 +122,12 @@ def download(bucket, keys, valuer, time_pattern, bbox, dest_dir):
         with open(key_file, 'a', len(serialized)) as kf:
           kf.write(serialized)
       logger.info('Gathered traces from %s' % key)
+    except (KeyboardInterrupt, SystemExit) as e:
+      raise e
     except Exception as e:
       logger.error('%s was not processed %s' % (key, e))
 
-def match(file_names, config, quantisation, source, dest_dir):
+def match(file_names, config, quantisation, inactivity, source, dest_dir):
   valhalla.Configure(config)
   segment_matcher = valhalla.SegmentMatcher()
   for file_name in file_names:
@@ -135,54 +140,75 @@ def match(file_names, config, quantisation, source, dest_dir):
 
     #do each trace in this file
     tiles = {}
-    for uuid, points in traces.iteritems():
-      #skip short traces
-      if len(points) < 2:
-        continue
-
+    for uuid, all_points in traces.iteritems():
       #sort the points by time in case threads were competing on the file
-      points.sort(key=lambda v:v['time'])
+      all_points.sort(key=lambda v:v['time'])
       report_levels = set([0, 1])
       transition_levels = set([0, 1])
       threshold_sec = 15
-      trace = {'uuid': uuid, 'trace': points}
-      
-      #get the matches for it
-      try:
-        match_str = segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
-        match = json.loads(match_str)
-        report = reporter_service.report(match, trace, threshold_sec, report_levels, transition_levels)
-      except:
-        logger.error('Failed to report trace from %s: %s' % (file_name, json.dumps(trace, separators=(',', ':'))))
-        continue
-      
-      #weed out the usable segments and then send them off to the time tiles
-      segments = [ r for r in report['datastore']['reports'] if r['t0'] > 0 and r['t1'] > 0 and r['t1'] - r['t0'] > .5 and r['length'] > 0 and r['queue_length'] >= 0 ]
-      for r in segments:
-        duration = int(round(r['t1'] - r['t0']))
-        start = int(math.floor(r['t0']))
-        end = int(math.ceil(r['t1']))
-        min_bucket = int(start / quantisation)
-        max_bucket = int(end / quantisation)
-        for b in range(min_bucket, max_bucket + 1):
-          tile_level = str(get_tile_level(r['id']))
-          tile_index = str(get_tile_index(r['id']))
-          tile_file_name = dest_dir + os.sep + str(b * quantisation) + '_' + str((b + 1) * quantisation - 1) + os.sep + tile_level + os.sep + tile_index
-          s = [
-            str(r['id']), str(r.get('next_id', INVALID_SEGMENT_ID)), str(duration), '1',
-            str(r['length']), str(r['queue_length']), str(start), str(end), source, 'AUTO'
-          ]
-          tiles.setdefault(tile_file_name, []).append(','.join(s) + os.linesep)
+
+      #find the points where inactivity occurs, these are the window boundaries
+      windows = []
+      for i, point in enumerate(all_points):
+        if i == 0 or point['time'] - points[i - 1]['time'] > inactivity:
+          windows.append(i)
+      windows.append(len(all_points))
+
+      #for each window, the last one is just an end marker
+      for i, window in enumerate(windows, len(windows) - 1):
+        #skip short traces
+        j = windows[i + 1]
+        if j - i < 2:
+          continue
+        
+        #get the matches for it
+        points = all_points[i : j]
+        trace = {'uuid': uuid, 'trace': points}
+        try:
+          match_str = segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
+          match = json.loads(match_str)
+          report = reporter_service.report(match, trace, threshold_sec, report_levels, transition_levels)
+        except (KeyboardInterrupt, SystemExit) as e:
+          raise e
+        except:
+          logger.error('Failed to report trace with uuid %s from file %s' % (uuid, file_name))
+          continue
+        
+        #weed out the usable segments and then send them off to the time tiles
+        buckets = (points[-1]['time'] - points[0]['time']) / quantisation + 1
+        segments = [ r for r in report['datastore']['reports'] if r['t0'] > 0 and r['t1'] > 0 and r['t1'] - r['t0'] > .5 and r['length'] > 0 and r['queue_length'] >= 0 ]
+        for r in segments:
+          duration = int(round(r['t1'] - r['t0']))
+          start = int(math.floor(r['t0']))
+          end = int(math.ceil(r['t1']))
+          min_bucket = int(start / quantisation)
+          max_bucket = int(end / quantisation)
+          diff = max_bucket - min_bucke
+          if diff > buckets:
+            logger.error('Segment spans %d buckets but should be %d buckets or less for uuid %s in file %s' % (max_bucket - min_bucket, buckets, uuid, file_name))
+            continue
+          for b in range(min_bucket, max_bucket + 1):
+            tile_level = str(get_tile_level(r['id']))
+            tile_index = str(get_tile_index(r['id']))
+            tile_file_name = dest_dir + os.sep + str(b * quantisation) + '_' + str((b + 1) * quantisation - 1) + os.sep + tile_level + os.sep + tile_index
+            s = [
+              str(r['id']), str(r.get('next_id', INVALID_SEGMENT_ID)), str(duration), '1',
+              str(r['length']), str(r['queue_length']), str(start), str(end), source, 'AUTO'
+            ]
+            tiles.setdefault(tile_file_name, []).append(','.join(s) + os.linesep)
 
     #append to a file
     for tile_file_name, tile in tiles.iteritems():
       try: os.makedirs(os.sep.join(tile_file_name.split(os.sep)[:-1]))
+      except (KeyboardInterrupt, SystemExit) as e:
+        raise e
       except: pass
       serialized = ''.join(tile)
       with open(tile_file_name, 'a', len(serialized)) as f:
         f.write(serialized)
 
-      #TODO: return the stats part so we can merge them together later on
+    #TODO: return the stats part so we can merge them together later on
+    logger.info('Finished matching %d traces in %s' % (len(traces), file_name))
   
 def report(file_names, bucket, privacy):
   session = boto3.session.Session()
@@ -236,7 +262,8 @@ def get_traces(bucket, prefix, regex, valuer, time_pattern, bbox, concurrency):
   keys = split(filtered, concurrency)
   processes = []
   for i in range(concurrency):
-    processes.append(multiprocessing.Process(target=download, args=(bucket, keys[i], valuer, time_pattern, bbox, dest_dir)))
+    bound = functools.partial(download, bucket, keys[i], valuer, time_pattern, bbox, dest_dir)
+    processes.append(multiprocessing.Process(target=interrupt_wrapper, args=(bound,)))
     processes[-1].start()
 
   #TODO: monitor progress
@@ -258,7 +285,8 @@ def make_matches(trace_dir, config, quantisation, source, concurrency):
   file_names = split(file_names, concurrency)  
   processes = []
   for i in range(concurrency):
-    processes.append(multiprocessing.Process(target=match, args=(file_names[i], config, quantisation, source, dest_dir)))
+    bound = functools.partial(match, file_names[i], config, quantisation, source, dest_dir)
+    processes.append(multiprocessing.Process(target=interrupt_wrapper, args=(bound,)))
     processes[-1].start()
 
   #TODO: monitor progress
@@ -279,7 +307,8 @@ def report_tiles(match_dir, bucket, privacy, concurrency):
   file_names = split(file_names, concurrency)  
   processes = []
   for i in range(concurrency):
-    processes.append(multiprocessing.Process(target=report, args=(file_names[i],bucket, privacy)))
+    bound = functools.partial(report, file_names[i],bucket, privacy)
+    processes.append(multiprocessing.Process(target=interrupt_wrapper, args=(bound,)))
     processes[-1].start() 
 
   #TODO: monitor progress
@@ -312,19 +341,22 @@ if __name__ == '__main__':
   parser.add_argument('--match-dir', type=str, help='To bypass trace matching supply the directory with the already matched segments')
   args = parser.parse_args()
 
-  #fetch the data and divide it up
-  exec('valuer = ' + args.src_valuer)
-  if not args.trace_dir and not args.match_dir:
-    args.trace_dir = get_traces(args.src_bucket, args.src_prefix, re.compile(args.src_key_regex), valuer, args.src_time_pattern, args.bbox, args.concurrency)
+  try:
+    #fetch the data and divide it up
+    exec('valuer = ' + args.src_valuer)
+    if not args.trace_dir and not args.match_dir:
+      args.trace_dir = get_traces(args.src_bucket, args.src_prefix, re.compile(args.src_key_regex), valuer, args.src_time_pattern, args.bbox, args.concurrency)
 
-  #do matching on every file
-  if not args.match_dir:
-    args.match_dir = make_matches(args.trace_dir, args.match_config, args.quantisation, args.source_id, args.concurrency)
+    #do matching on every file
+    if not args.match_dir:
+      args.match_dir = make_matches(args.trace_dir, args.match_config, args.quantisation, args.source_id, args.concurrency)
 
-  #filter and upload all the data
-  if args.dest_bucket:
-    report_tiles(args.match_dir, args.dest_bucket, args.privacy, args.concurrency)
+    #filter and upload all the data
+    if args.dest_bucket:
+      report_tiles(args.match_dir, args.dest_bucket, args.privacy, args.concurrency)
 
-  #clean up the data
-  #os.remove(src_dir)
-  #os.remove(match_dir)
+    #clean up the data
+    #os.remove(src_dir)
+    #os.remove(match_dir)
+  except (KeyboardInterrupt, SystemExit):
+    logger.error('Inerrupted or killed')
