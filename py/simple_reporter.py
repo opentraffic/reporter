@@ -147,20 +147,19 @@ def match(file_names, config, quantisation, inactivity, source, dest_dir):
       transition_levels = set([0, 1])
       threshold_sec = 15
 
-      #find the points where inactivity occurs, these are the window boundaries
+      #find the points where inactivity occurs, these are the time windows of a particular vehicles trace
       windows = []
       for i, point in enumerate(all_points):
-        if i == 0 or point['time'] - points[i - 1]['time'] > inactivity:
+        if i == 0 or point['time'] - all_points[i - 1]['time'] > inactivity:
           windows.append(i)
-      windows.append(len(all_points))
 
       #for each window, the last one is just an end marker
-      for i, window in enumerate(windows, len(windows) - 1):
-        #skip short traces
-        j = windows[i + 1]
+      for idx, i in enumerate(windows):
+        #skip short traces, last one is just an end marker
+        j = windows[idx + 1] if idx + 1 < len(windows) else len(all_points)
         if j - i < 2:
           continue
-        
+ 
         #get the matches for it
         points = all_points[i : j]
         trace = {'uuid': uuid, 'trace': points}
@@ -183,9 +182,9 @@ def match(file_names, config, quantisation, inactivity, source, dest_dir):
           end = int(math.ceil(r['t1']))
           min_bucket = int(start / quantisation)
           max_bucket = int(end / quantisation)
-          diff = max_bucket - min_bucke
+          diff = max_bucket - min_bucket
           if diff > buckets:
-            logger.error('Segment spans %d buckets but should be %d buckets or less for uuid %s in file %s' % (max_bucket - min_bucket, buckets, uuid, file_name))
+            logger.error('Segment spans %d buckets but should be %d buckets or less for uuid %s in file %s' % (diff, buckets, uuid, file_name))
             continue
           for b in range(min_bucket, max_bucket + 1):
             tile_level = str(get_tile_level(r['id']))
@@ -240,15 +239,15 @@ def report(file_names, bucket, privacy):
       #next
       i += 1
 
+    #figure out where this will go
+    key = '/'.join(file_name.split(os.sep)[1:]) + '/' + hashlib.sha1(file_name).hexdigest()
+    logger.info('Writing %d segments to %s' % (len(segments), key))
+
     #write the lines to a file like object and upload it
     with contextlib.closing(cStringIO.StringIO()) as f:
       f.write('segment_id,next_segment_id,duration,count,length,queue_length,minimum_timestamp,maximum_timestamp,source,vehicle_type' + os.linesep)
-      for s in segments:
-        f.write(s)
-      client.put_object(
-        Bucket=bucket,
-        Body=f.getvalue(),
-        Key='/'.join(file_name.split(os.sep)[1:]) + '/' + hashlib.sha1(file_name).hexdigest())
+      f.write(''.join(segments))
+      client.put_object(Bucket=bucket, Body=f.getvalue(), Key=key)
 
 def get_traces(bucket, prefix, regex, valuer, time_pattern, bbox, concurrency):
   #get the proper keys we care about
@@ -272,7 +271,7 @@ def get_traces(bucket, prefix, regex, valuer, time_pattern, bbox, concurrency):
   logger.info('Done gathering traces')
   return dest_dir
 
-def make_matches(trace_dir, config, quantisation, source, concurrency):
+def make_matches(trace_dir, config, quantisation, inactivity, source, concurrency):
   #get the files that contain the trace data
   dest_dir = tempfile.mkdtemp(dir='')
   file_names = []
@@ -285,7 +284,7 @@ def make_matches(trace_dir, config, quantisation, source, concurrency):
   file_names = split(file_names, concurrency)  
   processes = []
   for i in range(concurrency):
-    bound = functools.partial(match, file_names[i], config, quantisation, source, dest_dir)
+    bound = functools.partial(match, file_names[i], config, quantisation, inactivity, source, dest_dir)
     processes.append(multiprocessing.Process(target=interrupt_wrapper, args=(bound,)))
     processes[-1].start()
 
@@ -332,6 +331,7 @@ if __name__ == '__main__':
   parser.add_argument('--src-time-pattern', type=str, help='A string used to extract epoch seconds from a time string', default='%Y-%m-%d %H:%M:%S')
   parser.add_argument('--match-config', type=str, help='A file containing the config for the map matcher', required=True)
   parser.add_argument('--quantisation', type=int, help='How large are the buckets to make tiles for. They should always be an hour (3600 seconds)', default=3600)
+  parser.add_argument('--inactivity', type=int, help='How many seconds between readings of a given vehicle to consider as inactivity and there for separate for the purposes of matching', default=120)
   parser.add_argument('--privacy', type=int, help='How many readings of a given segment pair must appear before it being reported', default=2)
   parser.add_argument('--source-id', type=str, help='A simple string to identify where these readings came from', default='smpl_rprt')
   parser.add_argument('--dest-bucket', type=str, help='Bucket where we want to put the reporter output')
@@ -349,7 +349,7 @@ if __name__ == '__main__':
 
     #do matching on every file
     if not args.match_dir:
-      args.match_dir = make_matches(args.trace_dir, args.match_config, args.quantisation, args.source_id, args.concurrency)
+      args.match_dir = make_matches(args.trace_dir, args.match_config, args.quantisation, args.inactivity, args.source_id, args.concurrency)
 
     #filter and upload all the data
     if args.dest_bucket:
