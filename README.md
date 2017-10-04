@@ -311,3 +311,13 @@ In addition, the Reporter can be configured to determine which levels of the roa
 * TRANSITION_LEVELS=0,1,2 - This will enable reporting transitions onto next segment for all road levels, including local roads. The defaults is set to 0,1 if no environment variable is set.
 
 Note that setting to report next segment transitions on all levels will not necessarily mean that all transitions onto local roads will be reported. Since full segments must be traversed, any transition onto a local road that occurs along the middle of an arterial or highway traffic segment will not be reported.
+
+## Different Transport Modes
+
+The reporter is configured to handle automobile as the default transport mode. There are no means of automatically detecting different transport modes and separating reports into specific transport modes. A dedicated setup is required for each different transport mode and inputs must be segmented into the specific transport mode. If one needed to track a different transport mode (for example, bus) some changes to how the reporter is configured and run would be required. These changes include:
+* Input GPS stream - The input GPS data must be separated by transport mode such that the inputs to the Reporter include GPS points for a single transport mode.
+* Reporter TRANSPORT_MODE - An environment variable can be set to override the default transport mode. This transport mode must be one of the supported transport modes within the map-matching logic: bus, motor_scooter, bicycle, or auto.
+* --dest_bucket - The destination bucket for where the output is written must be changed to be a separate S3 bucket. There are no means for combining transport modes within the Datastore or Public Data Extracts created from the Datastore. To handle a different transport mode within the Open Traffic system, a separate Datastore must be deployed and run for each separate transport mode.
+
+There are also some considerations for how the Datastore is configured (TBD).
+
