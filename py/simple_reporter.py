@@ -239,6 +239,11 @@ def report(file_names, bucket, privacy):
       #next
       i += 1
 
+    #dont send empty results
+    if not segments:
+      logger.info('No segments for %s after anonymising' % file_name)
+      continue
+
     #figure out where this will go
     key = '/'.join(file_name.split(os.sep)[1:]) + '/' + hashlib.sha1(file_name).hexdigest()
     logger.info('Writing %d segments to %s' % (len(segments), key))
