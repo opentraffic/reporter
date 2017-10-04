@@ -61,6 +61,12 @@ class ThreadPoolMixIn(ThreadingMixIn):
       threshold_sec = bool(strtobool(str(os.environ.get('THRESHOLD_SEC'))))
     setattr(thread_local, 'threshold_sec', threshold_sec)
 
+    # Set transport mode (default is auto)
+    transport_mode = 'auto'
+    if os.environ.get('TRANSPORT_MODE'):
+      transport_mode = str(os.environ.get('TRANSPORT_MODE'))))
+    setattr(thread_local, 'transport_mode', transport_mode)
+
   def process_request_thread(self):
     self.make_thread_locals()
     while True:
@@ -97,12 +103,12 @@ def report(segments, trace, threshold_sec, report_levels, transition_levels):
 
   #Compute values to send to the datastore: start time for a segment
   #next segment (if any), start time at the next segment (end time of segment if no next segment)
-  segments['mode'] = 'auto'
+  segments['mode'] = thread_local.transport_mode
   prior_segment_id = None
   first_seg = True
   idx, successful_count, unreported_count, successful_length, unreported_length, discontinuities_count, invalid_time_count, invalid_speed_count, unassociated_seg_count = [0 for _ in range(9)]
   datastore_out = {}
-  datastore_out['mode'] = 'auto'
+  datastore_out['mode'] = thread_local.transport_mode
   datastore_out['reports'] = []
   while idx <= last_idx:
     seg = segments['segments'][idx]
