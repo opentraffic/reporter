@@ -244,11 +244,11 @@ Kafka is quite a bit of architecture with a lot of nice features and is being al
 ```
 usage: simple_reporter.py [-h] --src-bucket SRC_BUCKET --src-prefix SRC_PREFIX
                           [--src-key-regex SRC_KEY_REGEX]
-                          [--src-keyer SRC_KEYER] [--src-valuer SRC_VALUER]
+                          [--src-valuer SRC_VALUER]
                           [--src-time-pattern SRC_TIME_PATTERN] --match-config
                           MATCH_CONFIG [--quantisation QUANTISATION]
-                          [--privacy PRIVACY] [--source-id SOURCE_ID]
-                          [--dest-bucket DEST_BUCKET]
+                          [--inactivity INACTIVITY] [--privacy PRIVACY]
+                          [--source-id SOURCE_ID] [--dest-bucket DEST_BUCKET]
                           [--concurrency CONCURRENCY] [--bbox BBOX]
                           [--trace-dir TRACE_DIR] [--match-dir MATCH_DIR]
 
@@ -261,7 +261,7 @@ optional arguments:
   --src-key-regex SRC_KEY_REGEX
                         Bucket key regex for getting source data
   --src-valuer SRC_VALUER
-                        A lambda used to extract the uid, time, lat, lon and
+                        A lambda used to extract the uid, time, lat, lon,
                         accuracy from a given message in the input
   --src-time-pattern SRC_TIME_PATTERN
                         A string used to extract epoch seconds from a time
@@ -271,6 +271,10 @@ optional arguments:
   --quantisation QUANTISATION
                         How large are the buckets to make tiles for. They
                         should always be an hour (3600 seconds)
+  --inactivity INACTIVITY
+                        How many seconds between readings of a given vehicle
+                        to consider as inactivity and there for separate for
+                        the purposes of matching
   --privacy PRIVACY     How many readings of a given segment pair must appear
                         before it being reported
   --source-id SOURCE_ID
