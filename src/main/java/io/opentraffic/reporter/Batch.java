@@ -55,7 +55,7 @@ public class Batch {
     //make a post body: uuid json + uuid + trace json + number of points * (single point json) + end of json array and object 
     StringBuilder sb = new StringBuilder();
     sb.ensureCapacity(9 + key.length() + 11 + points.size() * (18 + 18 + 13 + 22 + 1) + 2);
-    sb.append("{\"uuid\":\""); sb.append(key); sb.append("\",{\"match_options\":{\"mode\":\"");
+    sb.append("{\"uuid\":\""); sb.append(key); sb.append("\",\"match_options\":{\"mode\":\"");
     sb.append(mode); sb.append("\"},\"trace\":[");
     for(Point p : points) {
       Point.Serder.put_json(p, sb);
