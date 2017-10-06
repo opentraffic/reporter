@@ -65,6 +65,17 @@ public class Reporter {
     Option url = new Option("u", "reporter-url", true, "The url to send batched/windowed portions of a given keys points to.");
     url.setRequired(true);
     
+    Option mode = new Option("m", "mode", true, "The mode of travel the input data used. Defaults to auto(mobile)");
+    mode.setRequired(false);
+    
+    Option reports = new Option("r", "reports", true, "The levels of osmlr segments we will report on as the first segment in the segment pair."
+        + " Defaults to 0,1. Any combination of 0,1,2 is allowed");
+    reports.setRequired(false);
+    
+    Option transitions = new Option("x", "transitions", true, "The levels of osmlr segments we will report on as the second segment in the segment pair."
+        + " Defaults to 0,1. Any combination of 0,1,2 is allowed");
+    transitions.setRequired(false);
+    
     Option privacy = new Option("p", "privacy", true, "The minimum number of observations of a given segment pair "
         + "required before including this pair in the histogram.");
     privacy.setRequired(true);
@@ -99,6 +110,9 @@ public class Reporter {
     options.addOption(topics);
     options.addOption(formatter);
     options.addOption(url);
+    options.addOption(mode);
+    options.addOption(reports);
+    options.addOption(transitions);
     options.addOption(privacy);
     options.addOption(quantisation);
     options.addOption(interval);

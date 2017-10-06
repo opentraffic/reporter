@@ -42,7 +42,7 @@ public class Segment implements Comparable<Segment>{
   @Override
   public String toString() {
     StringBuffer b = new StringBuffer(64);
-    appendToStringBuffer(b, "");
+    appendToStringBuffer(b, "", "");
     return b.toString();
   }
   
@@ -56,7 +56,7 @@ public class Segment implements Comparable<Segment>{
     return "segment_id,next_segment_id,duration,count,length,queue_length,minimum_timestamp,maximum_timestamp,source,vehicle_type";
   }
   
-  public void appendToStringBuffer(StringBuffer buffer, String source) {
+  public void appendToStringBuffer(StringBuffer buffer, String mode, String source) {
     buffer.append('\n');
     buffer.append(Long.toString(id)); buffer.append(',');
     if(next_id != INVALID_SEGMENT_ID)
@@ -70,8 +70,7 @@ public class Segment implements Comparable<Segment>{
     buffer.append(Long.toString(new Double(Math.floor(min)).longValue())); buffer.append(',');
     buffer.append(Long.toString(new Double(Math.ceil(max)).longValue())); buffer.append(',');
     buffer.append(source); buffer.append(',');
-    //TODO: parse this in the formatting processor or get it as a program argument
-    buffer.append("AUTO");
+    buffer.append(mode);
   }
   
   public static class Serder implements Serde<Segment> {
