@@ -127,7 +127,7 @@ def download(bucket, keys, valuer, time_pattern, bbox, dest_dir):
     except Exception as e:
       logger.error('%s was not processed %s' % (key, e))
 
-def match(file_names, config, quantisation, inactivity, source, dest_dir):
+def match(file_names, config, mode, report_levels, transition_levels, quantisation, inactivity, source, dest_dir):
   valhalla.Configure(config)
   segment_matcher = valhalla.SegmentMatcher()
   for file_name in file_names:
@@ -143,8 +143,6 @@ def match(file_names, config, quantisation, inactivity, source, dest_dir):
     for uuid, all_points in traces.iteritems():
       #sort the points by time in case threads were competing on the file
       all_points.sort(key=lambda v:v['time'])
-      report_levels = set([0, 1])
-      transition_levels = set([0, 1])
       threshold_sec = 15
 
       #find the points where inactivity occurs, these are the time windows of a particular vehicles trace
@@ -162,7 +160,7 @@ def match(file_names, config, quantisation, inactivity, source, dest_dir):
  
         #get the matches for it
         points = all_points[i : j]
-        trace = {'uuid': uuid, 'trace': points}
+        trace = {'uuid': uuid, 'trace': points, 'match_options':{'mode': mode}}
         try:
           match_str = segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
           match = json.loads(match_str)
@@ -192,7 +190,7 @@ def match(file_names, config, quantisation, inactivity, source, dest_dir):
             tile_file_name = dest_dir + os.sep + str(b * quantisation) + '_' + str((b + 1) * quantisation - 1) + os.sep + tile_level + os.sep + tile_index
             s = [
               str(r['id']), str(r.get('next_id', INVALID_SEGMENT_ID)), str(duration), '1',
-              str(r['length']), str(r['queue_length']), str(start), str(end), source, 'AUTO'
+              str(r['length']), str(r['queue_length']), str(start), str(end), source, mode.upper()
             ]
             tiles.setdefault(tile_file_name, []).append(','.join(s) + os.linesep)
 
@@ -276,7 +274,7 @@ def get_traces(bucket, prefix, regex, valuer, time_pattern, bbox, concurrency):
   logger.info('Done gathering traces')
   return dest_dir
 
-def make_matches(trace_dir, config, quantisation, inactivity, source, concurrency):
+def make_matches(trace_dir, config, mode, report_levels, transition_levels, quantisation, inactivity, source, concurrency):
   #get the files that contain the trace data
   dest_dir = tempfile.mkdtemp(dir='')
   file_names = []
@@ -289,7 +287,7 @@ def make_matches(trace_dir, config, quantisation, inactivity, source, concurrenc
   file_names = split(file_names, concurrency)  
   processes = []
   for i in range(concurrency):
-    bound = functools.partial(match, file_names[i], config, quantisation, inactivity, source, dest_dir)
+    bound = functools.partial(match, file_names[i], config, mode, report_levels, transition_levels, quantisation, inactivity, source, dest_dir)
     processes.append(multiprocessing.Process(target=interrupt_wrapper, args=(bound,)))
     processes[-1].start()
 
@@ -326,6 +324,9 @@ def check_box(bbox):
     raise argeparse.ArgumentTypeError('%s is not a valid bbox' % bbox)
   return b
 
+def int_set(ints):
+  return set(ints.split(','))
+
 if __name__ == '__main__':
   #build args
   parser = argparse.ArgumentParser()
@@ -335,6 +336,9 @@ if __name__ == '__main__':
   parser.add_argument('--src-valuer', type=str, help='A lambda used to extract the uid, time, lat, lon, accuracy from a given message in the input', default='lambda l: functools.partial(lambda c: [c[1], c[0], c[9], c[10], c[5] ], l.split("|"))()')
   parser.add_argument('--src-time-pattern', type=str, help='A string used to extract epoch seconds from a time string', default='%Y-%m-%d %H:%M:%S')
   parser.add_argument('--match-config', type=str, help='A file containing the config for the map matcher', required=True)
+  parser.add_argument('--mode', type=str, help='The mode of transport used in generating the input trace data', default='auto')
+  parser.add_argument('--report-levels', type=int_set, help='Comma seprated list of levels to report on', default=set([0,1]))
+  parser.add_argument('--transition-levels', type=int_set, help='Comma separated list of levels to allow transitions on', default=set([0,1]))
   parser.add_argument('--quantisation', type=int, help='How large are the buckets to make tiles for. They should always be an hour (3600 seconds)', default=3600)
   parser.add_argument('--inactivity', type=int, help='How many seconds between readings of a given vehicle to consider as inactivity and there for separate for the purposes of matching', default=120)
   parser.add_argument('--privacy', type=int, help='How many readings of a given segment pair must appear before it being reported', default=2)
@@ -344,6 +348,7 @@ if __name__ == '__main__':
   parser.add_argument('--bbox', type=check_box, help='Comma separated coordinates within which data will be reported: min_lat,min_lon,max_lat,max_lon', default=[-90.0,-180.0,90.0,180.0])
   parser.add_argument('--trace-dir', type=str, help='To bypass trace gathering supply the directory with already parsed traces')
   parser.add_argument('--match-dir', type=str, help='To bypass trace matching supply the directory with the already matched segments')
+  parser.add_argument('--cleanup', type=bool, help='Should temporary files be removed or not', default=True)
   args = parser.parse_args()
 
   try:
@@ -354,14 +359,15 @@ if __name__ == '__main__':
 
     #do matching on every file
     if not args.match_dir:
-      args.match_dir = make_matches(args.trace_dir, args.match_config, args.quantisation, args.inactivity, args.source_id, args.concurrency)
+      args.match_dir = make_matches(args.trace_dir, args.match_config, args.mode, args.report_levels, args.transition_levels, args.quantisation, args.inactivity, args.source_id, args.concurrency)
 
     #filter and upload all the data
     if args.dest_bucket:
       report_tiles(args.match_dir, args.dest_bucket, args.privacy, args.concurrency)
 
     #clean up the data
-    #os.remove(src_dir)
-    #os.remove(match_dir)
+    if args.cleanup:
+      os.remove(src_dir)
+      os.remove(match_dir)
   except (KeyboardInterrupt, SystemExit):
     logger.error('Inerrupted or killed')

@@ -61,6 +61,7 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
   private final int privacy;      //number of observations required to make it into a tile
   private final long interval;    //how frequently to dump tiles to external location
   private final int quantisation; //what is the resolution for time buckets
+  private final String mode;      //what type of transport mode to report on
   private final String source;    //how we'll identify ourselves to the external datastore
   private final String output;    //where should the output go
   private final boolean bucket;   //if the output should go to an s3 bucket
@@ -77,6 +78,7 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
     quantisation = Integer.parseInt(cmd.getOptionValue("quantisation"));
     if(quantisation < 60)
       throw new RuntimeException("Need quantisation parameter of 60 or more");
+    mode = cmd.getOptionValue("mode", "auto").toUpperCase();
     output = cmd.getOptionValue("output-location").replaceAll("/+$", "");
     source = cmd.getOptionValue("source");
     
@@ -177,7 +179,7 @@ public class AnonymisingProcessor implements ProcessorSupplier<String, Segment> 
         StringBuffer buffer = new StringBuffer(segments.size() * 64);
         buffer.append(Segment.columnLayout());
         for(Segment segment : segments)
-          segment.appendToStringBuffer(buffer, source);
+          segment.appendToStringBuffer(buffer, mode, source);
         
         //figure out some naming
         String tile_name = Long.toString(tile.time_range_start) + '_' +

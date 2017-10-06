@@ -46,7 +46,7 @@ public class Batch {
     points.add(p);
   }
   
-  public JsonNode report(String key, String url, int min_dist, int min_size, long min_elapsed) {
+  public JsonNode report(String key, String url, String mode, String report_on, String transition_on, int min_dist, int min_size, long min_elapsed) {
     //if it doesnt meet the requirements then bail
     if(max_separation < min_dist || points.size() < min_size ||
         points.get(points.size() - 1).time - points.get(0).time < min_elapsed)
@@ -55,7 +55,9 @@ public class Batch {
     //make a post body: uuid json + uuid + trace json + number of points * (single point json) + end of json array and object 
     StringBuilder sb = new StringBuilder();
     sb.ensureCapacity(9 + key.length() + 11 + points.size() * (18 + 18 + 13 + 22 + 1) + 2);
-    sb.append("{\"uuid\":\""); sb.append(key); sb.append("\",\"trace\":[");
+    sb.append("{\"uuid\":\""); sb.append(key); sb.append("\",\"match_options\":{\"mode\":\"");
+    sb.append(mode); sb.append("\",\"report_levels\":["); sb.append(report_on);
+    sb.append("],\"transition_levels\":["); sb.append(transition_on); sb.append("]},\"trace\":[");
     for(Point p : points) {
       Point.Serder.put_json(p, sb);
       sb.append(',');
