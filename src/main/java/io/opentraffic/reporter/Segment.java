@@ -42,7 +42,7 @@ public class Segment implements Comparable<Segment>{
   @Override
   public String toString() {
     StringBuffer b = new StringBuffer(64);
-    appendToStringBuffer(b, "");
+    appendToStringBuffer(b, "", "");
     return b.toString();
   }
   
