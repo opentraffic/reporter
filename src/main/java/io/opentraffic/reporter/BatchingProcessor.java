@@ -28,10 +28,12 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
   private final int REPORT_DIST = 500;   //meters
   private final long SESSION_GAP = 60000;//milliseconds
   private final String url;
+  private final String mode;
 
   public BatchingProcessor(CommandLine cmd) {
     logger.debug("Instantiating batching processor");
     url = cmd.getOptionValue("reporter-url");
+    mode = cmd.getOptionValue("mode", "auto");
   }
   
   @Override
@@ -59,7 +61,8 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
         else {
           batch.update(point);
           int length = batch.points.size();
-          int reported = forward(batch.report(key, url, REPORT_DIST, REPORT_COUNT, REPORT_TIME));
+          //TODO: send options about what levels to report on and transitions to allow
+          int reported = forward(batch.report(key, url, mode, REPORT_DIST, REPORT_COUNT, REPORT_TIME));
           if(reported > 0)
             logger.debug("Reported on " + reported + " segment pairs");
           if(batch.points.size() != length)
@@ -90,7 +93,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
             logger.debug("Evicting " + kv.key + " as it was stale");
             store.delete(kv.key);
             //report what we can if we can
-            int reported = forward(kv.value.report(kv.key, url, 0, 2, 0));
+            int reported = forward(kv.value.report(kv.key, url, mode, 0, 2, 0));
             if(reported > 0)
               logger.debug("Reported on " + reported + " segment pairs during eviction");
           }

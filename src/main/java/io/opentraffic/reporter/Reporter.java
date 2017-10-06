@@ -65,6 +65,9 @@ public class Reporter {
     Option url = new Option("u", "reporter-url", true, "The url to send batched/windowed portions of a given keys points to.");
     url.setRequired(true);
     
+    Option mode = new Option("m", "mode", true, "The mode of travel the input data used. Defaults to auto(mobile)");
+    mode.setRequired(false);
+    
     Option privacy = new Option("p", "privacy", true, "The minimum number of observations of a given segment pair "
         + "required before including this pair in the histogram.");
     privacy.setRequired(true);
@@ -99,6 +102,7 @@ public class Reporter {
     options.addOption(topics);
     options.addOption(formatter);
     options.addOption(url);
+    options.addOption(mode);
     options.addOption(privacy);
     options.addOption(quantisation);
     options.addOption(interval);
