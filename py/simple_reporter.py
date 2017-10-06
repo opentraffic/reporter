@@ -361,7 +361,8 @@ if __name__ == '__main__':
       report_tiles(args.match_dir, args.dest_bucket, args.privacy, args.concurrency)
 
     #clean up the data
-    #os.remove(src_dir)
-    #os.remove(match_dir)
+    if args.cleanup:
+      os.remove(args.trace_dir)
+      os.remove(args.match_dir)
   except (KeyboardInterrupt, SystemExit):
     logger.error('Inerrupted or killed')
