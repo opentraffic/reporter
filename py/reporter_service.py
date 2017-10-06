@@ -51,10 +51,6 @@ class ThreadPoolMixIn(ThreadingMixIn):
   def make_thread_locals(self):
     setattr(thread_local, 'segment_matcher', valhalla.SegmentMatcher())
 
-    #Set levels to report on, and levels to report transitions onto
-    setattr(thread_local, 'report_levels', set([ int(i) for i in os.environ.get('REPORT_LEVELS', '0,1').split(',')]))
-    setattr(thread_local, 'transition_levels', set([ int(i) for i in os.environ.get('TRANSITION_LEVELS', '0,1').split(',')]))
-
     #Set the threshold for last segment
     threshold_sec = 15
     if os.environ.get('THRESHOLD_SEC'):
@@ -228,12 +224,22 @@ class SegmentMatcherHandler(BaseHTTPRequestHandler):
     except Exception as e:
       return 400, '{"error":"trace must be a non zero length array of object each of which must have at least lat, lon and time"}'
 
+    #must have report and transition levels set
+    try:
+      report_levels = set(trace['match_options']['report_levels'])
+    except Exception as e:
+      return 400, '{"error":"match_options must include report_levels array"}'
+    try:
+      transition_levels = set(trace['match_options']['transition_levels'])
+    except Exception as e:
+      return 400, '{"error":"match_options must include transition_levels array"}'
+
     #possibly report on what we have
     try:
       #ask valhalla to give back OSMLR segments along this trace
       result = thread_local.segment_matcher.Match(json.dumps(trace, separators=(',', ':')))
       match = json.loads(result)
-      data = report(match, trace, thread_local.threshold_sec, thread_local.report_levels, thread_local.transition_levels)
+      data = report(match, trace, thread_local.threshold_sec, report_levels, transition_levels)
       return 200, json.dumps(data, separators=(',', ':'))
     except Exception as e:
       return 500, '{"error":"' + str(e) + '"}'
