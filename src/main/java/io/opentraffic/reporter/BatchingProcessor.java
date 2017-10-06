@@ -29,11 +29,15 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
   private final long SESSION_GAP = 60000;//milliseconds
   private final String url;
   private final String mode;
+  private final String report_on;
+  private final String transition_on;
 
   public BatchingProcessor(CommandLine cmd) {
     logger.debug("Instantiating batching processor");
     url = cmd.getOptionValue("reporter-url");
     mode = cmd.getOptionValue("mode", "auto");
+    report_on = cmd.getOptionValue("reports", "0,1");
+    transition_on = cmd.getOptionValue("transitions", "0,1");
   }
   
   @Override
@@ -62,7 +66,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
           batch.update(point);
           int length = batch.points.size();
           //TODO: send options about what levels to report on and transitions to allow
-          int reported = forward(batch.report(key, url, mode, REPORT_DIST, REPORT_COUNT, REPORT_TIME));
+          int reported = forward(batch.report(key, url, mode, report_on, transition_on, REPORT_DIST, REPORT_COUNT, REPORT_TIME));
           if(reported > 0)
             logger.debug("Reported on " + reported + " segment pairs");
           if(batch.points.size() != length)
@@ -93,7 +97,7 @@ public class BatchingProcessor implements ProcessorSupplier<String, Point> {
             logger.debug("Evicting " + kv.key + " as it was stale");
             store.delete(kv.key);
             //report what we can if we can
-            int reported = forward(kv.value.report(kv.key, url, mode, 0, 2, 0));
+            int reported = forward(kv.value.report(kv.key, url, mode, report_on, transition_on, 0, 2, 0));
             if(reported > 0)
               logger.debug("Reported on " + reported + " segment pairs during eviction");
           }
