@@ -325,7 +325,7 @@ def check_box(bbox):
   return b
 
 def int_set(ints):
-  return set(ints.split(','))
+  return set([ int(i) for i in ints.split(',') ])
 
 if __name__ == '__main__':
   #build args
