@@ -5,6 +5,7 @@ import boto3
 import functools
 import sys
 import os
+import shutil
 import re
 import logging
 import gzip
@@ -367,7 +368,7 @@ if __name__ == '__main__':
 
     #clean up the data
     if args.cleanup:
-      os.remove(args.trace_dir)
-      os.remove(args.match_dir)
+      shutil.rmtree(args.trace_dir, ignore_errors=True)
+      shutil.rmtree(args.match_dir, ignore_errors=True)
   except (KeyboardInterrupt, SystemExit):
     logger.error('Inerrupted or killed')
