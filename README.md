@@ -1,14 +1,48 @@
 # Open Traffic Reporter
 
-Open Traffic Reporter is part of OTv2, the new Open Traffic platform under development. It will take the place of OTv1's [Traffic Engine](https://github.com/opentraffic/traffic-engine) component.
+Open Traffic Reporter is part of [OTv2](https://github.com/opentraffic/otv2-platform). It takes the place of OTv1's [Traffic Engine](https://github.com/opentraffic/traffic-engine) component.
 
 Reporter takes in raw GPS probe data, matches it to [OSMLR segments](https://github.com/opentraffic/osmlr/blob/master/docs/intro.md) using [Valhalla](https://github.com/valhalla/valhalla/blob/master/docs/meili.md), and sends segments and speeds to the centralized [Open Traffic Datastore](https://github.com/opentraffic/datastore).
 
-## How to run the Reporter...let us count the ways...
+Reporter can be run in two ways:
+- as a set of Java-based programs that consume live [Apache Kafka](https://kafka.apache.org/) location streams
+- as a set of Python-based scripts that consume historical location snapshots
+
+---
+
+## Contents
+
+<!-- toc -->
+
+- [Kafka-based Reporter](#kafka-based-reporter)
+  * [Method 1: data from file/stdin](#method-1-data-from-filestdin)
+  * [Method 2: data from existing kafka](#method-2-data-from-existing-kafka)
+    + [Just the reporter docker containers](#just-the-reporter-docker-containers)
+    + [Debugging the application directly](#debugging-the-application-directly)
+  * [Kafka](#kafka)
+    + [Kafka Maintenance](#kafka-maintenance)
+  * [Exposed Ports/Services](#exposed-portsservices)
+  * [Reporter Output](#reporter-output)
+      - [`datastore`: contain the mode and list of reports that are sent to the datastore](#datastore-contain-the-mode-and-list-of-reports-that-are-sent-to-the-datastore)
+      - [`segment_matcher`: the result of matched segments from the traffic_segment_matcher](#segment_matcher-the-result-of-matched-segments-from-the-traffic_segment_matcher)
+      - [`shape_used`: the index within the input trace that can be trimmed](#shape_used-the-index-within-the-input-trace-that-can-be-trimmed)
+  * [Env Var Overrides](#env-var-overrides)
+  * [Testing/Publishing Containers](#testingpublishing-containers)
+  * [Manually Building and Publishing Containers](#manually-building-and-publishing-containers)
+- [Script-based Reporter](#script-based-reporter)
+- [Authentication](#authentication)
+- [Configuration](#configuration)
+- [Different Transport Modes](#different-transport-modes)
+
+<!-- tocstop -->
+
+---
+
+## Kafka-based Reporter
 
 ### Method 1: data from file/stdin
 
-To build/run the [reporter service](https://github.com/opentraffic/reporter) via docker-compose:
+To build/run the Reporter service via docker-compose:
 
 ```bash
 #get some osmlr enabled routing tiles for your region via the download_tiles.sh located in the py directory.
@@ -212,9 +246,9 @@ usage: kafka-reporter
                               0,1,2 is allowed
 ```
 
-#### Maintainance
+#### Kafka Maintenance
 
-If you run kafka locally alot it can start to get out of control with respect to both number of containers and disk space etc. If you want to kill off all of your containers try this:
+If you run Kafka locally a lot it can start to get out of control with respect to both number of containers and disk space etc. If you want to kill off all of your containers try this:
 
     docker rm -f $(docker ps -qa);
     
@@ -277,9 +311,9 @@ The following environment variables are exposed to allow manipulation of the pyt
 
 ### Testing/Publishing Containers
 
-This repository is tested on circleCI.
+This repository is tested on [CircleCI](https://circleci.com/gh/opentraffic/reporter).
 
-- pushes to master will result in a new container with the 'latest' tag being published on Docker Hub
+- pushes to master will result in a new container with the 'latest' tag being published on [Docker Hub](https://hub.docker.com/r/opentraffic/reporter/)
 - tagging in the form of `v{number}` will result in a docker container with a matching tag being built with whatever commit is referenced by that tag: e.g. tagging `v1.0.0` on master will result in a container with tag `v1.0.0` being built off of that tag on master.
 
 ### Manually Building and Publishing Containers
@@ -291,9 +325,9 @@ docker build --tag opentraffic/reporter:test --force-rm .
 docker push opentraffic/reporter:test
 ```
 
-## Alternatives to Kafka
+## Script-based Reporter
 
-Kafka is quite a bit of architecture with a lot of nice features and is being already used in organizations who handle a lot of data. For this reason kafka was an obvious choice for our on premisis work. For those that want to run the reporter but don't want to manage the complexity of Kafka we have developed a simple script to make the same types of output the kafka reporters do. The scripted is located in `py/simple_reporter.py`. It's inputs are as follows:
+Kafka is quite a bit of architecture with a lot of nice features and is being already used in organizations who handle a lot of data. For this reason Kafka was an obvious choice for our on-premises work. For those that want to run the reporter but don't want to manage the complexity of Kafka we have developed a simple script to make the same types of output the kafka reporters do. The scripted is located in `py/simple_reporter.py`. It's inputs are as follows:
 
 ```
 usage: simple_reporter.py [-h] --src-bucket SRC_BUCKET --src-prefix SRC_PREFIX
@@ -365,6 +399,8 @@ Note that the program requires access to the map matching python module and a ma
 The program works by first spawning a bunch of threads to download the source data from the bucket provided. You can use a regex to limit the data downloaded to just those files which match the regex. As the threads are downloading the source data they are parsing it according to the valuer lambda used to extract the various important information from a given line of the file. It also uses the time pattern to parse the time strings from the source data as well. This parsed data will be stored in many separate files each containing only the data for a small number of unique vehicles. After that source data is parsed and accumulated, more threads are spawned to crawl over the files and for each one assemble the trace of a given vehicle, get its osmlr segments and store those in the appropriate time tile files according to the quantisation parameter. After all traces have been matched to osmlr segments another set of threads is spawned to sort the tiles contents and remove observations which to meet the privacy threshold specified. The tiles are then uploaded to s3 where the datastore can do further processing. To reduce processing time and requirements you can specify a bounding box although this still requires all the source data to be filtered so it doesn't affect the time spent downloading sources.
 
 The program can also allow you to resume processing at a certain phase. If for example you've downloaded all the data but stopped processing it during matching, you can resume with the matching process by using the the `--trace-dir` aregument. Similarly if you want to resume after the matching has finished you can pass the `--match-dir` argument. 
+
+[More documentation](./load-historical-data/README.md) is available on how to use the script-based Reporter to load historical data.
 
 ## Authentication
 
