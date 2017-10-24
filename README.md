@@ -12,6 +12,10 @@ Reporter can be run in two ways:
 
 ## Contents
 
+<!-- to update contents:
+  npm install -g markdown-toc
+  markdown-toc -i README.md
+-- >
 <!-- toc -->
 
 - [Kafka-based Reporter](#kafka-based-reporter)
