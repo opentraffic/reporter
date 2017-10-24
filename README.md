@@ -2,11 +2,13 @@
 
 Open Traffic Reporter is part of [OTv2](https://github.com/opentraffic/otv2-platform). It takes the place of OTv1's [Traffic Engine](https://github.com/opentraffic/traffic-engine) component.
 
-Reporter takes in raw GPS probe data, matches it to [OSMLR segments](https://github.com/opentraffic/osmlr/blob/master/docs/intro.md) using [Valhalla](https://github.com/valhalla/valhalla/blob/master/docs/meili.md), and sends segments and speeds to the centralized [Open Traffic Datastore](https://github.com/opentraffic/datastore).
+Reporter takes in raw GPS probe data, matches it to [OSMLR segments](https://github.com/opentraffic/osmlr/blob/master/docs/intro.md) using [Valhalla's map-matching functionality](https://github.com/valhalla/valhalla/blob/master/docs/meili.md), and sends segments and speeds to the centralized [Open Traffic Datastore](https://github.com/opentraffic/datastore).
+
+Reporter and its map-matching algorithm is configurable. See the [Reporter Quality Testing Rig](https://github.com/opentraffic/reporter-quality-testing-rig/) for more information on how Reporter can be tuned to produce the best results for your particular GPS probe data's accuracy, frequency, and surrounding road-network density.
 
 Reporter can be run in two ways:
-- as a set of Java-based programs that consume live [Apache Kafka](https://kafka.apache.org/) location streams
-- as a set of Python-based scripts that consume historical location snapshots
+- _streaming_: as a set of Java-based programs that consume live [Apache Kafka](https://kafka.apache.org/) location streams
+- _batched_: as a set of Python-based scripts that consume historical location snapshots
 
 ---
 
@@ -16,20 +18,18 @@ Reporter can be run in two ways:
   npm install -g markdown-toc
   markdown-toc -i README.md
 -- >
+
 <!-- toc -->
 
 - [Kafka-based Reporter](#kafka-based-reporter)
   * [Method 1: data from file/stdin](#method-1-data-from-filestdin)
-  * [Method 2: data from existing kafka](#method-2-data-from-existing-kafka)
-    + [Just the reporter docker containers](#just-the-reporter-docker-containers)
+  * [Method 2: data from existing Kafka stream](#method-2-data-from-existing-kafka-stream)
+    + [Just the Reporter Docker containers](#just-the-reporter-docker-containers)
     + [Debugging the application directly](#debugging-the-application-directly)
-  * [Kafka](#kafka)
-    + [Kafka Maintenance](#kafka-maintenance)
+  * [Kafka stream configuration](#kafka-stream-configuration)
+    + [Kafka and Docker Maintenance](#kafka-and-docker-maintenance)
   * [Exposed Ports/Services](#exposed-portsservices)
   * [Reporter Output](#reporter-output)
-      - [`datastore`: contain the mode and list of reports that are sent to the datastore](#datastore-contain-the-mode-and-list-of-reports-that-are-sent-to-the-datastore)
-      - [`segment_matcher`: the result of matched segments from the traffic_segment_matcher](#segment_matcher-the-result-of-matched-segments-from-the-traffic_segment_matcher)
-      - [`shape_used`: the index within the input trace that can be trimmed](#shape_used-the-index-within-the-input-trace-that-can-be-trimmed)
   * [Env Var Overrides](#env-var-overrides)
   * [Testing/Publishing Containers](#testingpublishing-containers)
   * [Manually Building and Publishing Containers](#manually-building-and-publishing-containers)
@@ -75,12 +75,12 @@ reporterpy=$(docker ps -a | grep -F reporter-py | awk '{print $1}')
 docker logs --follow ${reporterpy}
 ```
 
-### Method 2: data from existing kafka
+### Method 2: data from existing Kafka stream
 
-If you already have a kafka stream setup then you'll only need to point the reporter at its outgoing topic with your messages on it. To do this you'll only need to run two of the pieces of software. The python reporter service and the kafka reporter stream processing application. These can either be run directly (especially in the case of debugging) or as docker containers. We'll go over both.
+If you already have a Kafka stream setup then you'll only need to point the reporter at its outgoing topic with your messages on it. To do this you'll only need to run two of the pieces of software. The python reporter service and the kafka reporter stream processing application. These can either be run directly (especially in the case of debugging) or as docker containers. We'll go over both.
 
 
-#### Just the reporter docker containers
+#### Just the Reporter Docker containers
 
 ```bash
 #get some osmlr enabled routing tiles for your region via the download_tiles.sh located in the py directory. 
@@ -114,7 +114,7 @@ docker logs --follow ${reporterpy}
 
 #### Debugging the application directly
 
-Say you want to make changes to the reporter, its a real pain to debug this through docker so lets not. Lets run those bits of the code directly:
+Say you want to make changes to the reporter, its a real pain to debug this through Docker so lets not. Lets run those bits of the code directly:
 
 ```bash
 #get some osmlr enabled routing tiles for your region via the download_tiles.sh located in the py directory.
@@ -152,7 +152,7 @@ target/reporter-kafka -b YOUR_KAFKA_BOOTSTRAP_SERVER_AND_PORT -t raw,formatted,b
 #now you can set breakpoints etc and walk through the code in eclipse
 ```
 
-When debugging, if you didnt already have a kafka stream handy to suck messages out of you can use the docker containers for just the kafka parts. If you do this the bit above about `YOUR_KAFKA_BOOTSTRAP_SERVER_AND_PORT` will be `localhost:9092`. Anyway start kafka and zookeeper in docker:
+When debugging, if you didn't already have a Kafka stream handy to suck messages out of you can use the Docker containers for just the Kafka parts. If you do this the bit above about `YOUR_KAFKA_BOOTSTRAP_SERVER_AND_PORT` will be `localhost:9092`. Anyway start Kafka and Zookeeper in Docker:
 
 ```bash
 #need a bridged docker network so zookeeper and kafka can see eachother
@@ -166,13 +166,13 @@ docker run -d --net opentraffic -p 9092:9092 -e "KAFKA_ADVERTISED_HOST_NAME=loca
 cat YOUR_FLAT_FILE | py/cat_to_kafka.py --topic raw --bootstrap localhost:9092 --key-with 'lambda line: json.loads(line)["id"]' -
 ```
 
-Notice the number `4` appearing multiple times in the above `docker run` command. This configures the number of partitions in each topic (its essentially akin to parallelism). You can increase or decrease this however you like for your particular system. The first topic `raw:4:1`, because it has 4 paritions must be keyed by uuid, as noted below. If you are not keying your input in this way please set it to `raw:1:1`.
+Notice the number `4` appearing multiple times in the above `docker run` command. This configures the number of partitions in each topic (its essentially akin to parallelism). You can increase or decrease this however you like for your particular system. The first topic `raw:4:1`, because it has 4 partitions must be keyed by uuid, as noted below. If you are not keying your input in this way please set it to `raw:1:1`.
 
-### Kafka
+### Kafka stream configuration
 
-We use kafka streams as the input mechanism to the reporter. You'll notice above that we rely on 3 topics being present. Its important that, if you are running your own Kafka infrastructure, that either the first topic is keyed by the uuid/vehicle id or that you only run a single partition in this topic. The reason for that is to prevent messages from arriving at the second topic in an out of order fashion.
+We use Kafka streams as the input mechanism to the reporter. You'll notice above that we rely on 3 topics being present. Its important that, if you are running your own Kafka infrastructure, that either the first topic is keyed by the uuid/vehicle id or that you only run a single partition in this topic. The reason for that is to prevent messages from arriving at the second topic in an out of order fashion.
 
-You'll also notice that there are tons of options to the kafka stream program so we'll list them here for clarity:
+You'll also notice that there are tons of options to the Kafka stream program so we'll list them here for clarity:
 
 ```
 usage: kafka-reporter
@@ -250,23 +250,23 @@ usage: kafka-reporter
                               0,1,2 is allowed
 ```
 
-#### Kafka Maintenance
+#### Kafka and Docker Maintenance
 
 If you run Kafka locally a lot it can start to get out of control with respect to both number of containers and disk space etc. If you want to kill off all of your containers try this:
 
     docker rm -f $(docker ps -qa);
     
-If you want to remove all of your various versions of docker images try this:
+If you want to remove all of your various versions of Docker images try this:
 
     docker rmi -f $(docker images -q)
     
-Finally if your disk is starting to fill up you can tell docker to free all of that space by doing:
+Finally if your disk is starting to fill up you can tell Docker to free all of that space by doing:
 
     docker volume prune
 
 ### Exposed Ports/Services
-* the container exposes port 8002 for the reporter python and docker-compose maps that port to your localhost
-* you can test the reporter python http service with a trace to see 1) what is being sent to the datastore 2) what osmlr segments it matched 3) the shape used index within the input trace that can be trimmed (either been reported on or can be skipped) : [click here](http://localhost:8002/report?json={"uuid":"100609","trace":[{"lat":14.543087,"lon":121.021019,"time":1000},{"lat":14.543620,"lon":121.021652,"time":1008},{"lat":14.544957,"lon":121.023247,"time":1029},{"lat":14.545470,"lon":121.023811,"time":1036},{"lat":14.546580,"lon":121.025124,"time":1053},{"lat":14.547284,"lon":121.025932,"time":1064},{"lat":14.547817,"lon":121.026665,"time":1072},{"lat":14.549700,"lon":121.028839,"time":1101},{"lat":14.550350,"lon":121.029610,"time":1111},{"lat":14.551256,"lon":121.030693,"time":1125},{"lat":14.551785,"lon":121.031395,"time":1133},{"lat":14.553422,"lon":121.033340,"time":1158},{"lat":14.553819,"lon":121.033806,"time":1164},{"lat":14.553976,"lon":121.033997,"time":1167}]})
+* the container exposes port 8002 for the Reporter Python and docker-compose maps that port to your localhost
+* you can test the reporter python http service with a trace to see 1) what is being sent to the Datastore 2) what OSMLR segments it matched 3) the shape used index within the input trace that can be trimmed (either been reported on or can be skipped) : [click here](http://localhost:8002/report?json={"uuid":"100609","trace":[{"lat":14.543087,"lon":121.021019,"time":1000},{"lat":14.543620,"lon":121.021652,"time":1008},{"lat":14.544957,"lon":121.023247,"time":1029},{"lat":14.545470,"lon":121.023811,"time":1036},{"lat":14.546580,"lon":121.025124,"time":1053},{"lat":14.547284,"lon":121.025932,"time":1064},{"lat":14.547817,"lon":121.026665,"time":1072},{"lat":14.549700,"lon":121.028839,"time":1101},{"lat":14.550350,"lon":121.029610,"time":1111},{"lat":14.551256,"lon":121.030693,"time":1125},{"lat":14.551785,"lon":121.031395,"time":1133},{"lat":14.553422,"lon":121.033340,"time":1158},{"lat":14.553819,"lon":121.033806,"time":1164},{"lat":14.553976,"lon":121.033997,"time":1167}]})
 * the output takes the form of:
 `"datastore":{"mode":"auto, "reports":[{"id": , next_id": , "queue_length": 0, "length": 500, "t0": , "t1": }]},`
 `"segment_matcher": {"segments":[{"segment_id": 12345, "way_ids":[123123123], "start_time": 231231111.456, "end_time": 231231175.356, "queue_length": 0, "length": 500, "internal": false, "begin_shape_index":0, "end_shape_index": 20}], "mode":"auto},`
@@ -274,7 +274,7 @@ Finally if your disk is starting to fill up you can tell docker to free all of t
 
 ### Reporter Output
 
-##### `datastore`: contain the mode and list of reports that are sent to the datastore
+`datastore`: contain the mode and list of reports that are sent to the datastore
 ``` 
   * mode : a Valhalla mode of travel
   * reports : an array of reports that contain: 
@@ -285,7 +285,7 @@ Finally if your disk is starting to fill up you can tell docker to free all of t
       * t0 : the time at the start of the segment_id
       * t1 : the time at the start of the next_id; if that is empty, then we use the time at the end of the segment_id
 ```
-##### `segment_matcher`: the result of matched segments from the traffic_segment_matcher
+`segment_matcher`: the result of matched segments from the traffic_segment_matcher
 ``` 
   * segments : an array of segments:
       * segment_id : optinal and will not be present when the portion of the path did not have osmlr coverage, otherwise this id is the osmlr 64bit id
@@ -299,26 +299,26 @@ Finally if your disk is starting to fill up you can tell docker to free all of t
       * end_shape_index : the index in the original trace before/at the end of the segment, useful for knowing which part of the trace constituted which segments
   * mode : a Valhalla mode of travel
 ``` 
-##### `shape_used`: the index within the input trace that can be trimmed
+`shape_used`: the index within the input trace that can be trimmed
 
 * 3 other bits of code are running in the background to allow for on demand processing of single points at a time
-  * the first two are kafka and zookeeper with some preconfigured topics to stream data on
-  * the final piece is a kafka worker which does the reformatting of the raw stream and aggregates sequences of points by time and trace id (uuid)
+  * the first two are Kafka and Zookeeper with some preconfigured topics to stream data on
+  * the final piece is a Kafka worker which does the reformatting of the raw stream and aggregates sequences of points by time and trace id (uuid)
 
 ### Env Var Overrides
 
 The following environment variables are exposed to allow manipulation of the python matcher service:
 
 - `MATCHER_BIND_ADDR`: the IP on which the process will bind inside the container. Defaults to '0.0.0.0'.
-- `MATCHER_CONF_FILE`: the configuration file the process will reference. Defaults to '/etc/valhalla.json', which is included in the build of the container.
-- `MATCHER_LISTEN_PORT`: the port on which the process will listen. Defaults to '8002'.
+- `MATCHER_CONF_FILE`: the configuration file the process will reference. Defaults to `/etc/valhalla.json`, which is included in the build of the container.
+- `MATCHER_LISTEN_PORT`: the port on which the process will listen. Defaults to `8002`.
 
 ### Testing/Publishing Containers
 
 This repository is tested on [CircleCI](https://circleci.com/gh/opentraffic/reporter).
 
 - pushes to master will result in a new container with the 'latest' tag being published on [Docker Hub](https://hub.docker.com/r/opentraffic/reporter/)
-- tagging in the form of `v{number}` will result in a docker container with a matching tag being built with whatever commit is referenced by that tag: e.g. tagging `v1.0.0` on master will result in a container with tag `v1.0.0` being built off of that tag on master.
+- tagging in the form of `v{number}` will result in a Docker container with a matching tag being built with whatever commit is referenced by that tag: e.g. tagging `v1.0.0` on master will result in a container with tag `v1.0.0` being built off of that tag on master.
 
 ### Manually Building and Publishing Containers
 
@@ -398,26 +398,28 @@ optional arguments:
   --cleanup CLEANUP     Should temporary files be removed or not
 ```
 
-Note that the program requires access to the map matching python module and a match config. The module is currently only available on linux and so the use of the program would depend on having access to a linux machine or docker.
+Note that the program requires access to the map matching python module and a match config. The module is currently only available on Linux and so the use of the program would depend on having access to a Linux machine or Docker.
 
-The program works by first spawning a bunch of threads to download the source data from the bucket provided. You can use a regex to limit the data downloaded to just those files which match the regex. As the threads are downloading the source data they are parsing it according to the valuer lambda used to extract the various important information from a given line of the file. It also uses the time pattern to parse the time strings from the source data as well. This parsed data will be stored in many separate files each containing only the data for a small number of unique vehicles. After that source data is parsed and accumulated, more threads are spawned to crawl over the files and for each one assemble the trace of a given vehicle, get its osmlr segments and store those in the appropriate time tile files according to the quantisation parameter. After all traces have been matched to osmlr segments another set of threads is spawned to sort the tiles contents and remove observations which to meet the privacy threshold specified. The tiles are then uploaded to s3 where the datastore can do further processing. To reduce processing time and requirements you can specify a bounding box although this still requires all the source data to be filtered so it doesn't affect the time spent downloading sources.
+The program works by first spawning a bunch of threads to download the source data from the bucket provided. You can use a regex to limit the data downloaded to just those files which match the regex. As the threads are downloading the source data they are parsing it according to the valuer lambda used to extract the various important information from a given line of the file. It also uses the time pattern to parse the time strings from the source data as well. This parsed data will be stored in many separate files each containing only the data for a small number of unique vehicles. After that source data is parsed and accumulated, more threads are spawned to crawl over the files and for each one assemble the trace of a given vehicle, get its OSMLR segments and store those in the appropriate time tile files according to the quantisation parameter. After all traces have been matched to OSMLR segments another set of threads is spawned to sort the tiles contents and remove observations which to meet the privacy threshold specified. The tiles are then uploaded to s3 where the Datastore can do further processing. To reduce processing time and requirements you can specify a bounding box although this still requires all the source data to be filtered so it doesn't affect the time spent downloading sources.
 
-The program can also allow you to resume processing at a certain phase. If for example you've downloaded all the data but stopped processing it during matching, you can resume with the matching process by using the the `--trace-dir` aregument. Similarly if you want to resume after the matching has finished you can pass the `--match-dir` argument. 
+The program can also allow you to resume processing at a certain phase. If for example you've downloaded all the data but stopped processing it during matching, you can resume with the matching process by using the the `--trace-dir` argument. Similarly if you want to resume after the matching has finished you can pass the `--match-dir` argument. 
 
 [More documentation](./load-historical-data/README.md) is available on how to use the script-based Reporter to load historical data.
 
 ## Authentication
 
-Currently we only support a rudimentary form of authentication between the reporter and the datastore. The idea is that the reporter will be run on premisis (ie. by fleet operator) and will then need to authenticate itself with the centralized datastore architecture. For now this is done via s3 authentication where fleet operators will be given keys to access s3. More info about connecting the reporter to s3 can be found by running the kafka-reporter without argument to see configuration parameter.
+Currently we only support a rudimentary form of authentication between the reporter and the Datastore. The idea is that the reporter will be run on-premises (ie. by fleet operator) and will then need to authenticate itself with the centralized Datastore architecture. For now this is done via S3 authentication where fleet operators will be given keys to access S3. More info about connecting the reporter to S3 can be found by running the Kafka-based Reporter without argument to see [configuration parameters](#kafka-stream-configuration).
 
 ## Configuration
 
-The reporter works by using an algorithm called map matching to take gps traces and compute the paths they took given a backing route network. The route network in this case is provided by the [valhalla](https://github.com/valhalla) library which is used to do the map matching algorithm. The algorithm has a number of configuration parameters which can be tuned to the particular use-cases found within the input data. Currently these values are set to sensible defaults and are baked into the docker container. To make changes to these values you'll need to change the `Dockerfile` and build your own container with custom values. These values are set via the `valhalla_build_config` command within the `Dockerfile`. To see the different values for map matching you can run `valhalla_build_config` and have a look at the various `meili` options.
+The Reporter works by using an algorithm called map-matching to take GPS traces and compute the paths they took given a backing route network. The route network in this case is provided by the [Valhalla](https://github.com/valhalla) library which is used to do the map-matching algorithm. The algorithm has a number of configuration parameters which can be tuned to the particular use-cases found within the input data. Currently these values are set to sensible defaults and are baked into the Docker container. To make changes to these values you'll need to change the `Dockerfile` and build your own container with custom values. These values are set via the `valhalla_build_config` command within the `Dockerfile`. To see the different values for map matching you can run `valhalla_build_config` and have a look at the various `meili` options.
+
+For more background on how to tune the map-matching algorithm's parameters see the [Reporter Quality Testing Rig](https://github.com/opentraffic/reporter-quality-testing-rig/).
 
 In addition, the Reporter can be configured to determine which levels of the road network can be reported to the Datastore. By default, the configuration is set to report on highway and arterial levels and to exclude local or residential roads. There are 2 environment variables that control this:
 
-* REPORT_LEVELS=0,1,2 - This will enable reporting on all road levels including local roads. The default is set to 0,1 if no environment variable is set. 
-* TRANSITION_LEVELS=0,1,2 - This will enable reporting transitions onto next segment for all road levels, including local roads. The defaults is set to 0,1 if no environment variable is set.
+* `REPORT_LEVELS=0,1,2` - This will enable reporting on all road levels including local roads. The default is set to `0,1` if no environment variable is set. 
+* `TRANSITION_LEVELS=0,1,2` - This will enable reporting transitions onto next segment for all road levels, including local roads. The defaults is set to `0,1` if no environment variable is set.
 
 Note that setting to report next segment transitions on all levels will not necessarily mean that all transitions onto local roads will be reported. Since full segments must be traversed, any transition onto a local road that occurs along the middle of an arterial or highway traffic segment will not be reported.
 
@@ -425,8 +427,8 @@ Note that setting to report next segment transitions on all levels will not nece
 
 The reporter is configured to handle automobile as the default transport mode. There are no means of automatically detecting different transport modes and separating reports into specific transport modes. A dedicated setup is required for each different transport mode and inputs must be segmented into the specific transport mode. If one needed to track a different transport mode (for example, bus) some changes to how the reporter is configured and run would be required. These changes include:
 * Input GPS stream - The input GPS data must be separated by transport mode such that the inputs to the Reporter include GPS points for a single transport mode.
-* Reporter TRANSPORT_MODE - Currently the reporter defaults to using a transport mode of `auto` when matching to OSMLR segments. An additional option needs to be added to the reporters to override this if a different type of data is expected. This transport mode must be one of the supported transport modes within the map-matching logic: bus, motor_scooter, bicycle, or auto.
-* --dest_bucket - The destination bucket for where the output is written must be changed to be a separate S3 bucket. There are no means for combining transport modes within the Datastore or Public Data Extracts created from the Datastore. To handle a different transport mode within the Open Traffic system, a separate Datastore must be deployed and run for each separate transport mode.
+* Reporter `TRANSPORT_MODE` - Currently the Reporter defaults to using a transport mode of `auto` when matching to OSMLR segments. An additional option needs to be added to the reporters to override this if a different type of data is expected. This transport mode must be one of the supported transport modes within the map-matching logic: `bus`, `motor_scooter`, `bicycle`, or `auto`.
+* `--dest_bucket` - The destination bucket for where the output is written must be changed to be a separate S3 bucket. There are no means for combining transport modes within the Datastore or Public Data Extracts created from the Datastore. To handle a different transport mode within the Open Traffic system, a separate Datastore must be deployed and run for each separate transport mode.
 
 There are also some considerations for how the Datastore is configured (TBD).
 
