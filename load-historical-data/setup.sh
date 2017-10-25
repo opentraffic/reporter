@@ -52,6 +52,4 @@ valhalla_build_config \
   --meili-default-max-route-time-factor 2 \
   > conf.json
 
-chmod 755 *.py
-
 echo "Setup is complete! Go to ${workdir} and use run.sh to start loading historical data."
