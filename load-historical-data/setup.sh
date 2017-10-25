@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-reporter_branch="dev"
 planet_file_date="2017_09_27-13_04_01"
 workdir="/mnt/load_historical_data"
 
@@ -30,6 +29,8 @@ sudo apt-get install -y \
 
 cp run.sh ${workdir}
 cp load_data.sh ${workdir}
+cp ../py/reporter_service.py ${workdir}
+cp ../py/simple_reporter.py ${workdir}
 
 pushd ${workdir}
 
@@ -50,13 +51,6 @@ valhalla_build_config \
   planet_${planet_file_date}.tar \
   --meili-default-max-route-time-factor 2 \
   > conf.json
-
-#get the program
-wget -O reporter_service.py \
-  https://raw.githubusercontent.com/opentraffic/reporter/${reporter_branch}/py/reporter_service.py
-
-wget -O simple_reporter.py \
-  https://raw.githubusercontent.com/opentraffic/reporter/${reporter_branch}/py/simple_reporter.py
 
 chmod 755 *.py
 
