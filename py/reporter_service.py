@@ -54,7 +54,7 @@ class ThreadPoolMixIn(ThreadingMixIn):
     #Set the threshold for last segment
     threshold_sec = 15
     if os.environ.get('THRESHOLD_SEC'):
-      threshold_sec = bool(strtobool(str(os.environ.get('THRESHOLD_SEC'))))
+      threshold_sec = int(str(os.environ.get('THRESHOLD_SEC')))
     setattr(thread_local, 'threshold_sec', threshold_sec)
 
   def process_request_thread(self):
