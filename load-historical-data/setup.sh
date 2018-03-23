@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-planet_file_date="2017_09_27-13_04_01"
+planet_file_date="2018_03_19-11_17_33"
 workdir="/mnt/load_historical_data"
 
 # basic sanity check
