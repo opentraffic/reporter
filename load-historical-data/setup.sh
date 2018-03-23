@@ -25,7 +25,8 @@ sudo apt-get install -y \
   python-pip \
   python-valhalla \
   valhalla-bin \
-  python-boto3
+  python-boto3 \
+  joe
 
 cp run.sh ${workdir}
 cp load_data.sh ${workdir}
